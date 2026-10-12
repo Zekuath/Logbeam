@@ -232,6 +232,23 @@ button:hover { border-color: var(--accent); }
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px;
 }
 
+/* keyboard shortcuts ( ? ) */
+.help {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--overlay); z-index: 20;
+}
+.help-box {
+  min-width: 320px; max-width: calc(100vw - 32px); padding: 14px 18px; border-radius: 10px;
+  background: var(--panel); border: 1px solid var(--border); box-shadow: 0 8px 30px rgba(0, 0, 0, .3);
+}
+.help-box h2 { margin: 0 0 10px; font-size: 14px; color: var(--accent); }
+.help-row { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; padding: 3px 0; }
+.help kbd {
+  display: inline-block; min-width: 22px; padding: 1px 6px; text-align: center; color: var(--fg);
+  font: 12px ui-monospace, Menlo, Consolas, monospace;
+  background: var(--bg); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px;
+}
+
 /* colours from ANSI escape codes */
 .ansi-black { color: var(--ansi-black); }
 .ansi-red { color: var(--ansi-red); }

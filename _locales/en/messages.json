@@ -196,5 +196,32 @@
   },
   "notAllowedGeneric": {
     "message": "Logbeam can’t run on this page."
+  },
+  "keysTitle": {
+    "message": "Keyboard shortcuts"
+  },
+  "keySearch": {
+    "message": "Search"
+  },
+  "keyPin": {
+    "message": "Pin the search as a highlight (in the search box)"
+  },
+  "keyNextError": {
+    "message": "Next error"
+  },
+  "keyNextSecret": {
+    "message": "Next leaked secret"
+  },
+  "keyBookmark": {
+    "message": "Bookmark the selected line"
+  },
+  "keyNextBookmark": {
+    "message": "Next bookmark"
+  },
+  "keyEscape": {
+    "message": "Clear the search, or close the line details"
+  },
+  "keyHelp": {
+    "message": "Show or hide these keys"
   }
 }

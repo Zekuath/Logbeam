@@ -195,6 +195,23 @@ check('JSON records show their fields', (await page.locator('.inspector .json').
 await page.keyboard.press('Escape');
 check('Esc closes the inspector', await page.locator('.inspector').isHidden());
 
+// ---- keyboard shortcuts ( ? ) ---------------------------------------------------------------
+await page.keyboard.press('?');
+check('? lists the keyboard shortcuts', (await page.locator('.help-box').textContent()).includes('Next leaked secret'));
+await page.keyboard.press('e');
+check('keys still work under the shortcuts list', await page.locator('.inspector').isVisible());
+await page.keyboard.press('Escape');
+check(
+  'Esc closes the shortcuts list first',
+  (await page.locator('.help').isHidden()) && (await page.locator('.inspector').isVisible()),
+);
+await page.keyboard.press('Escape');
+await page.locator('.toggle', { hasText: /^\?$/ }).click();
+check('the ? button opens the list', await page.locator('.help').isVisible());
+await page.screenshot({ path: 'docs/shortcuts.png' });
+await page.locator('.help').click({ position: { x: 5, y: 5 } });
+check('a click outside closes the list', await page.locator('.help').isHidden());
+
 // ---- link to a line -----------------------------------------------------------------------
 const linked = await context.newPage();
 watch(linked);
@@ -470,7 +487,14 @@ const insightStatus = () => insights.locator('.status').textContent();
 
 await insights.locator('.row[data-number="2"] .txt').click();
 await insights.keyboard.press('m');
-await insights.locator('.inspector .note').fill('the timeout starts here');
+// typed key by key: letters like e (next error) and m (bookmark) are text in the note, not shortcuts
+await insights.locator('.inspector .note').click();
+await insights.keyboard.type('the timeout starts here');
+check(
+  'typing a note doesn’t trigger shortcuts',
+  (await insights.locator('.inspector .note').inputValue()) === 'the timeout starts here' && /#L2$/.test(insights.url()),
+  `${await insights.locator('.inspector .note').inputValue()} ${insights.url()}`,
+);
 await insights.locator('.row[data-number="5"] .txt').click();
 await insights.locator('.inspector button', { hasText: 'Bookmark' }).click();
 check('bookmarks are counted', (await insights.locator('.bookmarks').textContent()) === '★ 2');

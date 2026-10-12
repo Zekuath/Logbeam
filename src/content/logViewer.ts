@@ -36,6 +36,7 @@ import { buildTimeline } from '../lib/timeline';
 import { parseLogAsync } from './parseAsync';
 import { COMPARE_ADD } from '../shared/compare';
 import { RegexSearch } from './regexSearch';
+import { shortcutsHelp } from './shortcuts';
 import { VIEWER_CSS } from './viewerStyles';
 
 /**
@@ -343,6 +344,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     { className: 'toggle', title: 'Copy the bookmarked lines with times and notes, as Markdown for a ticket' },
     'Report',
   );
+  const helpButton = el('button', { className: 'toggle', title: 'Keyboard shortcuts ( ? )' }, '?');
   const groupsButton = el(
     'button',
     { className: 'toggle', title: 'The same error grouped: how often, in which pods, first and last time' },
@@ -409,6 +411,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     openButton,
     fileInput,
     rawButton,
+    helpButton,
     status,
     fieldList,
   );
@@ -493,7 +496,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   groupsPanel.hidden = true;
   const toast = el('div', { className: 'toast' });
   const dropHint = el('div', { className: 'drop-hint' }, 'Drop a .log or .gz file to open it');
-  body.append(toolbar, subbar, timelineEl, groupsPanel, scroller, inspector, toast, dropHint);
+  const help = shortcutsHelp();
+  body.append(toolbar, subbar, timelineEl, groupsPanel, scroller, inspector, toast, dropHint, help);
 
   const displayText = (line: LogLine) => {
     const text = localizeTimestamp(line.text, state.timeMode);
@@ -798,6 +802,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     });
     void copy(report, `Report with ${bookmarks.length} line${bookmarks.length > 1 ? 's' : ''} copied`);
   });
+  helpButton.addEventListener('click', () => (help.hidden = !help.hidden));
   groupsButton.addEventListener('click', () => {
     groupsPanel.hidden = !groupsPanel.hidden;
     groupsButton.classList.toggle('on', !groupsPanel.hidden);
@@ -946,7 +951,14 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
         return;
       }
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === '/') {
+      // typing in the bookmark note or the Columns box: letters are text there, not shortcuts
+      const target = event.target as HTMLElement;
+      if (event.key !== 'Escape' && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (event.key === '?') {
+        help.hidden = !help.hidden;
+      } else if (event.key === 'Escape' && !help.hidden) {
+        help.hidden = true;
+      } else if (event.key === '/') {
         event.preventDefault();
         search.focus();
       } else if (event.key === 'e') {

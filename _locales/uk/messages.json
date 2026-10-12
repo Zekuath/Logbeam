@@ -196,5 +196,32 @@
   },
   "notAllowedGeneric": {
     "message": "Logbeam не може працювати на цій сторінці."
+  },
+  "keysTitle": {
+    "message": "Гарячі клавіші"
+  },
+  "keySearch": {
+    "message": "Пошук"
+  },
+  "keyPin": {
+    "message": "Закріпити пошук як підсвітку (у полі пошуку)"
+  },
+  "keyNextError": {
+    "message": "Наступна помилка"
+  },
+  "keyNextSecret": {
+    "message": "Наступний секрет, що потрапив у лог"
+  },
+  "keyBookmark": {
+    "message": "Закладка на вибраний рядок"
+  },
+  "keyNextBookmark": {
+    "message": "Наступна закладка"
+  },
+  "keyEscape": {
+    "message": "Очистити пошук або закрити деталі рядка"
+  },
+  "keyHelp": {
+    "message": "Показати або сховати цей список"
   }
 }
