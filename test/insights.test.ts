@@ -4,11 +4,13 @@ import {
   bookmarkReport,
   defaultColumns,
   fieldStats,
+  formatDuration,
   formatTime,
   groupErrors,
   isMostlyJson,
   lineFields,
   localizeTimestamp,
+  numericStats,
   tableCells,
 } from '../src/lib/insights';
 import { parseLog } from '../src/lib/logs';
@@ -66,6 +68,57 @@ describe('bookmarkReport', () => {
     });
     expect(report).toContain('- **L1**');
     expect(report).toContain('password=********');
+  });
+});
+
+describe('numericStats', () => {
+  const timed = parseLog(
+    [
+      '{"level":"info","duration":120}',
+      '{"level":"info","duration":950}',
+      'INFO slow request duration=1.2s',
+      'ERROR failed duration=30ms',
+      '\tat com.example.Pay.charge(Pay.java:42) duration=99999ms',
+      'INFO done duration=5ms',
+      'INFO cached duration=40',
+    ].join('\n'),
+  );
+
+  it('gives min, median, p95, p99 and max of durations in milliseconds', () => {
+    expect(numericStats(timed, 'duration')).toEqual({
+      count: 6,
+      min: 5,
+      median: 40,
+      p95: 1200,
+      p99: 1200,
+      max: 1200,
+      duration: true,
+    });
+  });
+
+  it('uses the nearest rank, a value that was really seen', () => {
+    const many = parseLog(Array.from({ length: 100 }, (_, i) => `INFO took=${i + 1}`).join('\n'));
+    const stats = numericStats(many, 'took')!;
+    expect([stats.median, stats.p95, stats.p99, stats.duration]).toEqual([50, 95, 99, false]);
+  });
+
+  it('is null for text fields and for a single number', () => {
+    expect(numericStats(lines, 'service')).toBeNull();
+    expect(numericStats(parseLog('INFO a took=5ms'), 'took')).toBeNull();
+    // mostly IDs that look like words: not a number field
+    const ids = parseLog(['INFO id=abc', 'INFO id=def', 'INFO id=12', 'INFO id=13', 'INFO id=xyz'].join('\n'));
+    expect(numericStats(ids, 'id')).toBeNull();
+  });
+
+  it('formats durations the way logs write them', () => {
+    expect([0.4, 120, 1200, 1250, 90_000, 7_200_000].map(formatDuration)).toEqual([
+      '0.4ms',
+      '120ms',
+      '1.2s',
+      '1.3s',
+      '1.5m',
+      '2h',
+    ]);
   });
 });
 

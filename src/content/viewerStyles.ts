@@ -203,6 +203,9 @@ button:hover { border-color: var(--accent); }
 .stat .bar-wrap { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
 .stat .bar { display: block; height: 100%; background: var(--info); }
 .stat .n { color: var(--muted); text-align: right; }
+.percentiles { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.percentile { font: 12px ui-monospace, Menlo, Consolas, monospace; padding: 1px 7px; }
+.percentile .name { color: var(--muted); }
 
 /* error groups */
 .groups {

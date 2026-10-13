@@ -10,11 +10,15 @@
 - **Light theme** for the log viewer, Compare, Settings and the popup: like the system, or always dark or
   light (#5).
 - **Keyboard shortcuts list**: press `?` (or the **?** button) in the log viewer to see its keys (#4).
+- **Percentiles for numbers and durations.** Field statistics of a field like `took=154ms` or
+  `"duration": 950` also show min, median, p95, p99 and max; click one to see only the entries at or
+  above it (`took>=1.2s`).
 
 ### Fixed
 
 - Typing a bookmark note or table columns no longer triggers the viewer's keys: an `e` in the note
   jumped to the next error and lost what was typed.
+- Esc in the search box could be undone 150 ms later by the search still waiting for typing to stop.
 - The end-to-end test expected numbers formatted for the machine's locale.
 
 ## 0.5.0

@@ -3,7 +3,7 @@
  * the top values of a field, groups of the same error, columns for a JSON table, local times, and the
  * new part of a log that is still being written.
  */
-import { fieldValue, plainFields } from './fields';
+import { fieldValue, numericValue, plainFields } from './fields';
 import { LogLine, formatGap, signature, splitSource } from './logs';
 
 // ---- bookmarks ---------------------------------------------------------------------------
@@ -78,6 +78,64 @@ export function fieldStats(lines: LogLine[], key: string, top = 10): { values: V
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
     .slice(0, top);
   return { values, total };
+}
+
+export interface NumericStats {
+  /** Entries with a number in this field. */
+  count: number;
+  min: number;
+  median: number;
+  p95: number;
+  p99: number;
+  max: number;
+  /** Some values had a time unit (250ms, 1.2s): the numbers are milliseconds. */
+  duration: boolean;
+}
+
+/** Below this share of numeric values a field is treated as text (an ID that is sometimes a number). */
+const NUMERIC_SHARE = 0.8;
+
+/**
+ * Min, median, p95, p99 and max of a field whose values are numbers or durations (took=154ms,
+ * "duration": 950), over the given entries; null for a text field or fewer than 2 numbers.
+ */
+export function numericStats(lines: LogLine[], key: string): NumericStats | null {
+  const numbers: number[] = [];
+  let total = 0;
+  let duration = false;
+  for (const line of lines) {
+    if (line.continuation) continue;
+    const value = fieldValue(line, key);
+    if (value === undefined) continue;
+    total++;
+    const number = numericValue(value);
+    if (Number.isNaN(number)) continue;
+    numbers.push(number);
+    if (/[a-zµ]$/i.test(value.trim())) duration = true;
+  }
+  if (numbers.length < 2 || numbers.length < total * NUMERIC_SHARE) return null;
+  numbers.sort((a, b) => a - b);
+  // nearest rank: p95 is a value that was really seen, at or above 95% of them
+  const rank = (p: number) => numbers[Math.min(numbers.length - 1, Math.ceil(p * numbers.length) - 1)];
+  return {
+    count: numbers.length,
+    min: numbers[0],
+    median: rank(0.5),
+    p95: rank(0.95),
+    p99: rank(0.99),
+    max: numbers[numbers.length - 1],
+    duration,
+  };
+}
+
+/** A duration in milliseconds as people write it in logs: 0.4ms, 120ms, 1.2s, 3.5m. */
+export function formatDuration(ms: number): string {
+  const round = (n: number) => String(Math.round(n * 10) / 10);
+  if (Math.abs(ms) < 1) return `${Math.round(ms * 1000) / 1000}ms`;
+  if (Math.abs(ms) < 1000) return `${round(ms)}ms`;
+  if (Math.abs(ms) < 60_000) return `${round(ms / 1000)}s`;
+  if (Math.abs(ms) < 3_600_000) return `${round(ms / 60_000)}m`;
+  return `${round(ms / 3_600_000)}h`;
 }
 
 /** The fields of a line, in the order they appear: JSON keys or key=value pairs. */

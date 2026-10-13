@@ -517,6 +517,26 @@ check('a value filters by it', (await insights.locator('.search').inputValue()) 
 await insights.locator('.search').fill('');
 await insights.keyboard.press('Escape');
 
+// a field of durations: percentiles, and a click shows the slow entries
+await insights.locator('.row[data-number="4"] .txt').click();
+await insights.locator('.inspector .field', { hasText: 'duration' }).click();
+const percentiles = (await insights.locator('.inspector .percentile').allTextContents()).join(' | ');
+check(
+  'duration fields show min, median, p95, p99 and max',
+  percentiles === 'min 5ms | median 40ms | p95 1.2s | p99 1.2s | max 1.2s',
+  percentiles,
+);
+await insights.waitForTimeout(2500); // let the Report toast fade
+await insights.screenshot({ path: 'docs/percentiles.png' });
+await insights.locator('.inspector .percentile', { hasText: 'median' }).click();
+check(
+  'a percentile shows the entries at or above it',
+  (await insights.locator('.search').inputValue()) === 'duration>=40ms' && (await insightStatus()).startsWith('4 /'),
+  `${await insights.locator('.search').inputValue()} ${await insightStatus()}`,
+);
+await insights.locator('.search').fill('');
+await insights.keyboard.press('Escape');
+
 await insights.locator('.toggle', { hasText: 'Groups' }).click();
 const groupItems = await insights.locator('.group-item .n').allTextContents();
 check('errors are grouped', groupItems.join(',') === '×1,×1,×1', groupItems.join(','));

@@ -21,11 +21,13 @@ import {
   bookmarkReport,
   defaultColumns,
   fieldStats,
+  formatDuration,
   formatTime,
   groupErrors,
   isMostlyJson,
   lineFields,
   localizeTimestamp,
+  numericStats,
   tableCells,
 } from '../lib/insights';
 import { findSecrets, maskSecrets, setCustomSecretPatterns } from '../lib/secrets';
@@ -618,12 +620,52 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     inspector.replaceChildren(...parts);
   }
 
-  /** Top values of a field over the lines shown now; click a value to filter by it. */
+  /** Shows only the entries whose field is at least this number: duration>=950ms. */
+  function filterAtLeast(key: string, value: string): void {
+    search.value = `${key}>=${value}`;
+    state.query = search.value;
+    void refresh();
+  }
+
+  /**
+   * Top values of a field over the lines shown now; click a value to filter by it. A field of numbers
+   * or durations also gets min, median, p95, p99 and max; click one to see the entries at or above it.
+   */
   function showStats(box: HTMLElement, key: string): void {
     const { values, total } = fieldStats(visible, key);
     const max = values[0]?.count ?? 1;
+    const numbers = numericStats(visible, key);
+    const percentiles: Node[] = [];
+    if (numbers) {
+      const show = (n: number) =>
+        numbers.duration ? formatDuration(n) : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      const parts = [
+        ['min', numbers.min],
+        ['median', numbers.median],
+        ['p95', numbers.p95],
+        ['p99', numbers.p99],
+        ['max', numbers.max],
+      ] as const;
+      percentiles.push(
+        el(
+          'div',
+          { className: 'percentiles' },
+          ...parts.map(([name, n]) => {
+            const chip = el(
+              'button',
+              { className: 'percentile', title: `Show only ${key} ≥ ${show(n)}` },
+              el('span', { className: 'name' }, name),
+              ` ${show(n)}`,
+            );
+            chip.addEventListener('click', () => filterAtLeast(key, numbers.duration ? `${n}ms` : String(n)));
+            return chip;
+          }),
+        ),
+      );
+    }
     box.replaceChildren(
       el('div', { className: 'stats-head' }, `${key}: ${total.toLocaleString()} of the shown entries have it`),
+      ...percentiles,
       ...values.map(({ value, count }) => {
         const bar = el('span', { className: 'bar' });
         bar.style.width = `${Math.max(2, Math.round((count / max) * 100))}%`;
@@ -943,6 +985,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     (event) => {
       if (event.target === search) {
         if (event.key === 'Escape') {
+          // a search still waiting for typing to stop would run after this and redraw again
+          clearTimeout(debounce);
           search.value = '';
           state.query = '';
           void refresh();

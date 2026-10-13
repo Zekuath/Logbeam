@@ -54,7 +54,8 @@ piped to a file…) with **Ctrl+Shift+L** (**⌃⇧L** on Mac) or from the popup
   browser); drop a file onto any viewer to open it
 - **Save** the visible lines as a file
 - **Bookmarks and notes** (`m`, `b`): **Report** copies them as Markdown for a ticket, with times and links
-- **Field statistics**: the most common values of a field (`status: 200 ×1520, 502 ×37`), one click to filter
+- **Field statistics**: the most common values of a field (`status: 200 ×1520, 502 ×37`), one click to filter;
+  for numbers and durations also min, median, p95, p99 and max (`took: p95 1.2s`), one click to see the slow ones
 - **Error groups**: each different error once, with its count, pods and first and last time
 - **Follow** a log that is still being written: new lines are added every 3 seconds
 - **JSON table** with the columns you choose, and **local time** instead of UTC
