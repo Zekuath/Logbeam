@@ -184,8 +184,9 @@ const DATE = /\b\d{4}-\d{2}-\d{2}\b/g;
 const CLOCK_TIME = /\b\d{2}:\d{2}:\d{2}(?:[.,]\d+)?\b/g;
 const EPOCH_AT_START = /^\s*\d{10}(?:\d{3})?(?:\.\d+)?\b/;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
-// commit SHAs, container and trace IDs; must contain a letter so plain numbers aren't IDs
-const HEX_ID = /\b(?=[0-9a-f]*[a-f])[0-9a-f]{12,}\b/gi;
+// commit SHAs, container and trace IDs; must contain a letter so plain numbers aren't IDs, and from
+// 7 to 11 characters also a digit, so words like "defaced" stay: 41aa0be, 9f2c71d03e, a3f9c2e1b7d4
+const HEX_ID = /\b(?:(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,}|(?=[0-9a-f]*[a-f])[0-9a-f]{12,})\b/gi;
 const DURATION = /\b\d+(?:\.\d+)?\s?(?:ns|µs|us|ms|s|sec|secs|seconds?|m|min|h)\b/g;
 
 /**

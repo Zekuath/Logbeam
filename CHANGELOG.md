@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+
+- **New errors in Compare.** Compare two runs of a CI job, and above the diff Logbeam lists the errors
+  that are new in the second one, with how often they happened; the ones that are gone are listed apart.
+  Errors are matched by message and first stack frames, with times, numbers and IDs ignored. Click one
+  to jump to it in the diff (#13).
+
+### Improved
+
+- **Jenkins consoles.** Logs without timestamps no longer carry the last level on to every line after
+  it: `[Pipeline]` steps and the `+ command` lines Jenkins echoes start entries of their own, and a bare
+  `java.lang.…Exception:` line is an error.
+- **IDs in hex.** Short commit SHAs and cache keys (`41aa0be`, `node-modules-9f2c71d`) are ignored by
+  "Ignore timestamps, IDs and durations" in Compare, and by error groups and collapsed repeats.
+
 ## 0.6.0
 
 ### Added

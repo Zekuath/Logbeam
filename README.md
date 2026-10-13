@@ -29,7 +29,7 @@ Base64, timestamps, cron). All of it runs locally; no data leaves your browser.
 </p>
 
 <p align="center">
-  <img src="docs/log-viewer.png" alt="Logbeam log viewer: levels in colour, grouped stack trace, pauses between entries" width="860">
+  <img src="docs/demo.gif" alt="Logbeam: a raw log opened in the viewer, next error, a field filter, p95 latency, and the new errors between two CI runs" width="860">
 </p>
 
 ## Features
@@ -60,7 +60,8 @@ piped to a file…) with **Ctrl+Shift+L** (**⌃⇧L** on Mac) or from the popup
 - **Follow** a log that is still being written: new lines are added every 3 seconds
 - **JSON table** with the columns you choose, and **local time** instead of UTC
 - **ANSI colours** from CI and Docker logs, **your own level words** (`ALERT` → ERROR), and a **light theme**
-- **Compare** this log with another one, e.g. a passing and a failing CI run (see below)
+- **Compare** this log with another one, e.g. a passing and a failing CI run, with the **new errors** listed
+  first (see below)
 - **Pauses between entries**: `+5.5s` next to lines where the app stalled
 - **Collapse repeats**: 500 × `retry 17 of 50 for job 8123` becomes one line with a `×500` badge
 - **Error timeline**: a histogram of entries, errors and warnings over time; click a bar to jump there
@@ -125,11 +126,13 @@ button) on one text and then on the other:
 - **Logs**: a line diff with the changed words marked and unchanged parts folded. **Ignore timestamps, IDs and
   durations** lines up two runs of the same job, so `2026-10-03T09:00:20Z Tests: 120 passed` against
   `2026-10-04T11:30:20Z Tests: 119 passed, 1 failed` shows only the test result as changed
+- **New errors**: above the diff, the errors that the second run has and the first one doesn't (and those that
+  are gone), matched by message and stack with times and IDs ignored; click one to jump to it
 - **JSON**: compared by key, so key order doesn't matter, with a list of changed paths (`$.env.LOG_LEVEL`,
   `$.ports[1]`) and exact comparison of numbers too big for JavaScript (`12345678901234567890`)
 - Open or drop files, swap sides, ignore whitespace, mask secrets in the output
 
-<p align="center"><img src="docs/compare.png" alt="Comparing two CI logs with timestamps and IDs ignored" width="860"></p>
+<p align="center"><img src="docs/compare-errors.png" alt="Compare lists the errors that are new in the failing CI run" width="860"></p>
 
 ## Privacy and permissions
 
@@ -176,6 +179,7 @@ npm run lint:firefox  # the checks addons.mozilla.org runs on upload
 npm run check         # lint + format + typecheck + unit tests + build (what CI runs)
 npm run package       # logbeam-<version>.zip (Chrome), logbeam-firefox-<version>.zip, sources for AMO
 npm run store-assets  # Chrome Web Store screenshots and promo tiles from docs/*.png
+npm run demo-gif      # docs/demo.gif for this README, recorded in Chromium
 npm run icons         # regenerate the PNG icons (drawn in code, no image editor needed)
 ```
 

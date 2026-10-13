@@ -111,6 +111,12 @@ const LETTER_LEVELS: Record<string, Level> = { V: 'TRACE', D: 'DEBUG', I: 'INFO'
 const CONTINUATION_RE =
   /^(\s+at\s|\s+\.\.\.\s\d+\s(more|common frames)|Caused by:|Suppressed:|\s+File ".*", line \d+|Traceback \(most recent call last\)|goroutine \d+ \[|\t)/;
 
+// Jenkins pipeline steps and the shell commands it echoes start entries of their own, so a log
+// without timestamps doesn't carry the last level on: "[Pipeline] sh", "+ mvn -B test"
+const STEP_RE = /^(?:\[Pipeline\] |\+ )/;
+// a Java exception printed without a level, e.g. by Maven or Jenkins: "java.lang.IllegalStateException: boom"
+const EXCEPTION_RE = /^(?:Exception in thread "[^"]*" )?(?:[a-z_$][\w$]*\.)+[A-Z][\w$]*(?:Exception|Error)\b(?::|$)/;
+
 // ISO 8601 and the common "yyyy-MM-dd HH:mm:ss,SSS" / "yyyy/MM/dd HH:mm:ss.SSS" forms.
 const TIMESTAMP_RE = /(\d{4})[-/](\d{2})[-/](\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,9}))?(Z|[+-]\d{2}:?\d{2})?/;
 
@@ -496,6 +502,11 @@ export class LogParser {
       // a line without its own level but with a timestamp starts a new, unknown-level entry
       if (level !== null || time !== null) {
         this.currentLevel = level;
+      } else if (STEP_RE.test(rest)) {
+        this.currentLevel = level = null;
+      } else if (this.currentLevel === null && EXCEPTION_RE.test(rest)) {
+        // outside any entry with a level (after a WARN line it stays part of that warning)
+        this.currentLevel = level = 'ERROR';
       } else {
         level = this.currentLevel;
       }
@@ -586,12 +597,16 @@ export interface CollapsedLine extends LogLine {
  * "[http-nio-8080-exec-2]"), ids or counters are treated as equal.
  */
 export function signature(text: string): string {
-  return text
-    .replace(TIMESTAMP_RE, '')
-    .replace(/\[[^\]]*\]/g, '[]')
-    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<uuid>')
-    .replace(/\d+/g, '#')
-    .trim();
+  return (
+    text
+      .replace(TIMESTAMP_RE, '')
+      .replace(/\[[^\]]*\]/g, '[]')
+      .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '<uuid>')
+      // hex IDs, hashes and commit SHAs (key 9f2c, sha 41aa0be): letters and digits both, so words stay
+      .replace(/\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{4,}\b/gi, '<hex>')
+      .replace(/\d+/g, '#')
+      .trim()
+  );
 }
 
 /**

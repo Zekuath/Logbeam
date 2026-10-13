@@ -3,6 +3,7 @@ import {
   appendedText,
   bookmarkReport,
   defaultColumns,
+  diffErrors,
   fieldStats,
   formatDuration,
   formatTime,
@@ -166,6 +167,45 @@ describe('groupErrors', () => {
     const groups = groupErrors(log);
     expect(groups.map((g) => g.count)).toEqual([2, 1]);
     expect(groups[0].sources).toEqual(['a-1/app', 'b-1/app']);
+  });
+});
+
+describe('diffErrors', () => {
+  const green = parseLog(
+    [
+      '2026-10-03T09:00:01Z INFO build 101 started',
+      '2026-10-03T09:00:02Z ERROR cache miss for key 9f2c',
+      '2026-10-03T09:00:03Z ERROR flaky probe timed out after 3012ms',
+      '\tat Probe.check(Probe.java:20)',
+      '2026-10-03T09:00:09Z INFO build 101 passed',
+    ].join('\n'),
+  );
+  const red = parseLog(
+    [
+      '2026-10-04T10:00:01Z INFO build 102 started',
+      '2026-10-04T10:00:02Z ERROR cache miss for key 41aa',
+      '2026-10-04T10:00:05Z ERROR connection refused to db:5432',
+      '\tat Db.connect(Db.java:88)',
+      '2026-10-04T10:00:06Z ERROR connection refused to db:5432',
+      '\tat Db.connect(Db.java:88)',
+      '2026-10-04T10:00:09Z ERROR build 102 failed',
+    ].join('\n'),
+  );
+
+  it('finds the errors that are new, ignoring times, IDs and numbers', () => {
+    const diff = diffErrors(green, red);
+    expect(diff.added.map((g) => [g.count, g.lines[0], g.sample])).toEqual([
+      [2, 3, '2026-10-04T10:00:05Z ERROR connection refused to db:5432'],
+      [1, 7, '2026-10-04T10:00:09Z ERROR build 102 failed'],
+    ]);
+    expect(diff.same).toBe(1);
+  });
+
+  it('lists the errors that are gone', () => {
+    expect(diffErrors(green, red).gone.map((g) => g.sample)).toEqual([
+      '2026-10-03T09:00:03Z ERROR flaky probe timed out after 3012ms',
+    ]);
+    expect(diffErrors(red, red)).toEqual({ added: [], gone: [], same: 3 });
   });
 });
 

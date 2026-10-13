@@ -744,6 +744,56 @@ check(
   (await compare.locator('#changes .after').last().textContent()) === '12345678901234567891',
 );
 
+// new errors: the last green CI run against the failing one
+const ciRun = (day, sha, lines) =>
+  [
+    `2026-10-${day}T09:00:01.120Z INFO  Checking out ${sha}`,
+    `2026-10-${day}T09:00:04.310Z INFO  npm ci: added 812 packages in 3.1s`,
+    `2026-10-${day}T09:00:09.002Z WARN  Cache miss for key node-modules-${sha.slice(0, 7)}`,
+    `2026-10-${day}T09:00:12.448Z INFO  Starting payments-service on port 8080`,
+    ...lines,
+    `2026-10-${day}T09:01:40.900Z INFO  Done in 99.8s`,
+  ].join('\n');
+const green = ciRun('03', '41aa0be9c2', [
+  '2026-10-03T09:00:20.100Z ERROR Flaky probe timed out after 3012ms',
+  '\tat com.example.health.Probe.check(Probe.java:20)',
+  '2026-10-03T09:01:30.500Z INFO  Tests: 120 passed',
+]);
+const red = ciRun('04', '9f2c71d03e', [
+  '2026-10-04T09:00:20.300Z ERROR Connection refused: db:5432 after 3 retries',
+  '\tat org.postgresql.Driver.connect(Driver.java:285)',
+  '\tat com.example.payments.Db.open(Db.java:41)',
+  '2026-10-04T09:00:24.700Z ERROR Connection refused: db:5432 after 3 retries',
+  '\tat org.postgresql.Driver.connect(Driver.java:285)',
+  '\tat com.example.payments.Db.open(Db.java:41)',
+  '2026-10-04T09:01:30.800Z ERROR PaymentsIT.refundsPartially failed: expected 200 but was 500',
+  '2026-10-04T09:01:31.000Z INFO  Tests: 119 passed, 1 failed',
+]);
+await compare.locator('#clear').click();
+await compare.locator('#left').fill(green);
+await compare.locator('#right').fill(red);
+await compare.waitForSelector('#errors:not([hidden]) .error');
+check(
+  'Compare lists the errors that are new in After',
+  (await compare.locator('.errors-head').textContent()) === 'New errors in After: 2 kinds of error' &&
+    (await compare.locator('#errors > .error .n').allTextContents()).join(',') === '×2,×1',
+  await compare.locator('#errors').textContent(),
+);
+check(
+  'errors that are gone are listed apart',
+  (await compare.locator('.gone summary').textContent()) === 'Gone since Before: 1 kind of error',
+);
+await compare.locator('#errors > .error').first().click();
+check(
+  'a new error scrolls the diff to it',
+  (await compare.locator('.line.flash').getAttribute('data-right')) === '5',
+  await compare.locator('.line.flash').getAttribute('data-right'),
+);
+await compare.locator('#ignore-volatile').check();
+await compare.waitForTimeout(400);
+await compare.evaluate(() => window.scrollTo(0, 0));
+await compare.screenshot({ path: 'docs/compare-errors.png' });
+
 // a tab's own badge, once cleared, falls back to the global one (used while a compare waits)
 const fallback = await popup.evaluate(async () => {
   const [tab] = await chrome.tabs.query({});

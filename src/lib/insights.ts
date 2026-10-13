@@ -1,7 +1,7 @@
 /**
  * What the log viewer computes about a log besides filtering it: an incident report from bookmarks,
- * the top values of a field, groups of the same error, columns for a JSON table, local times, and the
- * new part of a log that is still being written.
+ * the top values of a field, groups of the same error (and which are new since another log), columns
+ * for a JSON table, local times, and the new part of a log that is still being written.
  */
 import { fieldValue, numericValue, plainFields } from './fields';
 import { LogLine, formatGap, signature, splitSource } from './logs';
@@ -190,6 +190,33 @@ export function groupErrors(lines: LogLine[]): ErrorGroup[] {
     }
   }
   return [...groups.values()].sort((a, b) => b.count - a.count || a.lines[0] - b.lines[0]);
+}
+
+export interface ErrorDiff {
+  /** Errors in the second log that the first one doesn't have. */
+  added: ErrorGroup[];
+  /** Errors of the first log that are gone in the second. */
+  gone: ErrorGroup[];
+  /** Kinds of error in the second log that the first one had too. */
+  same: number;
+}
+
+/**
+ * What went wrong this time that didn't before: the error groups of two logs, e.g. the last green
+ * CI run and the failing one, matched by message and first stack frames with numbers, IDs and times
+ * ignored, so two runs of the same job give the same groups.
+ */
+export function diffErrors(before: LogLine[], after: LogLine[]): ErrorDiff {
+  const beforeGroups = groupErrors(before);
+  const afterGroups = groupErrors(after);
+  const beforeKeys = new Set(beforeGroups.map((g) => g.key));
+  const afterKeys = new Set(afterGroups.map((g) => g.key));
+  const added = afterGroups.filter((g) => !beforeKeys.has(g.key));
+  return {
+    added,
+    gone: beforeGroups.filter((g) => !afterKeys.has(g.key)),
+    same: afterGroups.length - added.length,
+  };
 }
 
 // ---- time zones --------------------------------------------------------------------------

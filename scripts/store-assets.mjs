@@ -1,5 +1,5 @@
 // Builds Chrome Web Store images from docs/*.png (run `npm run screenshots` first):
-// five captioned 1280x800 screenshots and the 440x280 / 1400x560 promo tiles.
+// captioned 1280x800 screenshots (the first five for the Chrome Web Store) and the 440x280 / 1400x560 promo tiles.
 // JPEG output because the store rejects PNGs with an alpha channel.
 import { chromium } from 'playwright';
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -40,19 +40,38 @@ const SCREENSHOTS = [
     'docs/log-viewer.png',
   ],
   [
-    '2-secrets',
+    '2-new-errors',
+    'What broke <span class="accent">this run</span>?',
+    'Compare a green and a red CI run: the new errors first, timestamps and IDs ignored',
+    'docs/compare-errors.png',
+  ],
+  [
+    '3-secrets',
     'Catches <span class="accent">leaked keys and passwords</span>',
     'AWS keys, tokens, JWTs, DB passwords flagged with 🔑 · one click masks them everywhere',
     'docs/secrets.png',
   ],
   [
-    '3-filters',
+    '4-percentiles',
+    '<span class="accent">p95 latency</span> in one click',
+    'Field statistics with min, median, p95, p99 · click one to see only the slow requests',
+    'docs/percentiles.png',
+  ],
+  // after the popup (5): extra screenshots for addons.mozilla.org, which takes more than five
+  [
+    '6-light-theme',
+    'Dark or <span class="accent">light</span>',
+    'Like the system, or always dark or light: the log viewer, Compare, Settings and the popup',
+    'docs/log-viewer-light.png',
+  ],
+  [
+    '7-filters',
     'Find the problem <span class="accent">in seconds</span>',
     'Filter by level · regex search · collapse repeated lines (×6) · jump to next error',
     'docs/log-viewer-filtered.png',
   ],
   [
-    '4-json',
+    '8-json',
     'Right-click → <span class="accent">Format JSON</span>',
     'Works on any page · “Replace selection” writes the result back into inputs and editors',
     'docs/text-tools.png',
@@ -87,7 +106,7 @@ const SMALL_PROMO = `<style>${BASE_CSS}
   p { font-size: 17px; color: #9aa4ad; margin-top: 6px; line-height: 1.35; }
 </style>
 <img src="${ICON}">
-<div><h1>Log<span class="accent">beam</span></h1><p>Readable logs, dark mode<br>&amp; dev tools for Chrome</p></div>`;
+<div><h1>Log<span class="accent">beam</span></h1><p>Readable logs, dark mode<br>&amp; dev tools for your browser</p></div>`;
 
 const MARQUEE = `<style>${BASE_CSS}
   body { display: flex; align-items: center; gap: 56px; padding-left: 90px; }
