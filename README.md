@@ -66,7 +66,7 @@ piped to a file…) with **Ctrl+Shift+L** (**⌃⇧L** on Mac) or from the popup
 - **Error timeline**: a histogram of entries, errors and warnings over time; click a bar to jump there
 - **Line inspector**: click a line to read it in full, with its time, pause and, for JSON records, all fields
 - **Links to lines**: click a line number to copy a `#L120` link that opens the viewer right on that line
-- **Next error** (`e`), search (`/`), copy visible lines, back to raw
+- **Next error** (`e`), search (`/`), copy visible lines, back to raw; `?` lists all the keys
 - **Open automatically** on sites you choose (opt-in per site, only plain-text pages that look like logs)
 - Fast on **150k+ lines**: logs over 1 MB are parsed in a **Web Worker** with a progress bar, and only the
   rows on screen are in the DOM
@@ -180,34 +180,44 @@ npm run icons         # regenerate the PNG icons (drawn in code, no image editor
 ```
 
 Releases: bump the version, add a `CHANGELOG.md` entry and push a `vX.Y.Z` tag. The release workflow runs every
-check including the end-to-end test, attaches the ZIP to a GitHub Release, and uploads it to the Chrome Web Store
-for review. Setup and details: [docs/PUBLISHING.md](docs/PUBLISHING.md).
-
-```
-
-```
+check including the end-to-end test, attaches the ZIPs to a GitHub Release, and uploads them to the Chrome Web Store
+and addons.mozilla.org for review (it can also be started from the Actions tab). Setup and details: [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ```
 src/
 ├── background.ts        service worker: context menu, keyboard shortcuts, permission events
 ├── content/
-│   ├── logViewer.ts     virtualized log viewer: filters, inspector, timeline, secrets, #L links
-│   ├── parseAsync.ts    Web Worker parsing (Blob worker) with a chunked main-thread fallback
-│   ├── parseWorker.ts   the worker itself, inlined into the viewer at build time
+│   ├── logViewer.ts     virtualized log viewer: filters, inspector, timeline, secrets, bookmarks, #L links
+│   ├── viewerStyles.ts  its CSS, dark and light
+│   ├── shortcuts.ts     the ? list of keys
+│   ├── parseAsync.ts    Web Worker parsing with a chunked main-thread fallback
+│   ├── parseWorker.ts   the parse worker; searchWorker.ts runs regex search with a timeout
 │   ├── autoOpen.ts      opt-in per site: opens plain-text logs automatically
 │   └── panel.ts         result panel for the text tools (Shadow DOM, no style clashes)
 ├── lib/                 pure logic, fully unit-tested
-│   ├── logs.ts          incremental parser: levels, timestamps, JSON, stack traces, filters, repeats
+│   ├── logs.ts          incremental parser: levels, timestamps, JSON, stack traces, pods, filters, repeats
+│   ├── ansi.ts          ANSI colour codes → plain text and colour spans
+│   ├── fields.ts        field filters: level=error duration>1.5s
+│   ├── insights.ts      bookmark reports, field statistics and percentiles, error groups, JSON table
+│   ├── diff.ts          line and JSON diff for Compare
 │   ├── secrets.ts       credential detection and masking
+│   ├── regexSafety.ts   rejects regexes prone to catastrophic backtracking
 │   ├── timeline.ts      error/warning histogram
 │   ├── segments.ts      overlapping highlights (search matches inside secrets)
+│   ├── files.ts         .log and .gz files
 │   ├── transforms.ts    JSON, JWT, Base64, URL, timestamps, case, lines, mask secrets
 │   └── cron.ts          cron → plain English (5 and 6 field, macros, names)
 ├── shared/
+│   ├── settings.ts      the options, in chrome.storage.sync
+│   ├── i18n.ts          translations from _locales
+│   ├── theme.ts         dark / light / like the system
 │   ├── darkMode.ts      per-site dark mode with dynamic content scripts
 │   ├── autoOpen.ts      per-site auto-open registration
 │   └── inject.ts        on-demand script injection
 ├── popup/               toolbar popup
+├── viewer/              the viewer page for pasted text and files
+├── diff/                Compare
+├── options/             Settings
 └── dark.css             the dark theme itself
 ```
 
@@ -224,7 +234,7 @@ src/
   (different origin), so the worker is built separately, inlined as a string and started from a Blob. Pages
   whose CSP blocks that fall back to parsing in chunks between frames. The e2e test covers both paths.
 - **Pure core.** Parsing, secret detection and transforms have no DOM or `chrome.*` dependencies, which keeps
-  them easy to test: 61 unit tests plus 30 end-to-end checks in a real Chromium.
+  them easy to test: 139 unit tests, plus over 100 end-to-end checks in a real Chromium and 28 in Firefox.
 
 ## Roadmap
 
@@ -238,6 +248,11 @@ src/
 - [x] Diff two JSON documents or two logs
 - [x] Multi-line JSON log records
 - [x] Firefox build
+- [x] ANSI colours, your own level words, light theme, percentiles for durations
+- [ ] Ukrainian for the log viewer, Compare and Settings ([#1](https://github.com/andronaft/Logbeam/issues/1))
+- [ ] More languages ([#2](https://github.com/andronaft/Logbeam/issues/2))
+- [ ] `j` / `k` between lines, context around matches, filters in the link, line ranges
+      ([good first issues and more](https://github.com/andronaft/Logbeam/issues))
 
 ## License
 
