@@ -63,7 +63,22 @@ const ansiLog = [
   `${E}[90m2026-10-10 10:00:05${E}[0m ${E}[1;31mERROR${E}[0m tests failed`,
   `${E}[2K${E}[1G${E}[33mWARN${E}[0m retrying`,
 ].join('\n');
+// a Jenkins console: no timestamps, so a level must not carry on past a step or a command
+const jenkinsLog = [
+  'Started by user admin',
+  '[Pipeline] sh',
+  '+ mvn -B test',
+  '[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources',
+  '[INFO] Tests run: 42, Failures: 0',
+  '[Pipeline] sh',
+  '+ ./deploy.sh staging',
+  'java.lang.IllegalStateException: no healthy upstream for payments',
+  '\tat com.example.deploy.Rollout.check(Rollout.java:57)',
+  '\tat com.example.deploy.Main.main(Main.java:12)',
+  'Finished: FAILURE',
+].join('\n');
 const plainPages = {
+  '/jenkins.log': jenkinsLog,
   '/ansi.log': ansiLog,
   '/redos.log': redosLog,
   '/pem.log': pemLog,
@@ -211,6 +226,26 @@ check('the ? button opens the list', await page.locator('.help').isVisible());
 await page.screenshot({ path: 'docs/shortcuts.png' });
 await page.locator('.help').click({ position: { x: 5, y: 5 } });
 check('a click outside closes the list', await page.locator('.help').isHidden());
+
+// ---- Jenkins console ----------------------------------------------------------------------
+const jenkins = await context.newPage();
+watch(jenkins);
+await jenkins.goto(`${base}/jenkins.log`);
+await jenkins.addScriptTag({ path: path.join(dist, 'logViewer.js') });
+await jenkins.waitForSelector('.row');
+const levelOf = (n) => jenkins.locator(`.row[data-number="${n}"]`).getAttribute('class');
+check(
+  'a Jenkins warning stops at the next step',
+  (await levelOf(4)).includes('lvl-WARN') && !(await levelOf(6)).includes('lvl-WARN') && !(await levelOf(7)).includes('lvl-WARN'),
+  `${await levelOf(4)} | ${await levelOf(6)} | ${await levelOf(7)}`,
+);
+await jenkins.keyboard.press('e');
+check(
+  'next error finds a bare Java exception in a Jenkins console',
+  (await jenkins.locator('.inspector .full-text').textContent()).startsWith('java.lang.IllegalStateException'),
+  await jenkins.locator('.inspector .full-text').textContent(),
+);
+await jenkins.close();
 
 // ---- link to a line -----------------------------------------------------------------------
 const linked = await context.newPage();
