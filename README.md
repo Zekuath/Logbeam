@@ -258,6 +258,12 @@ src/
 - [ ] `j` / `k` between lines, context around matches, filters in the link, line ranges
       ([good first issues and more](https://github.com/andronaft/Logbeam/issues))
 
+## Contributing
+
+Ideas, bug reports, translations and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[good first issues](https://github.com/andronaft/Logbeam/labels/good%20first%20issue). Security problems:
+[SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)
