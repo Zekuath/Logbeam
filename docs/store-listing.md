@@ -23,12 +23,14 @@ LOG VIEWER (Ctrl+Shift+L)
 • Java, Python and Go stack traces stay grouped with their error
 • Plain-text and regex search with highlighted matches
 • JSON logs (Logstash, pino, bunyan, zap) shown as readable lines
+• ANSI colours from CI runners and Docker; GitHub Actions ##[error] / ##[warning] lines and Jenkins consoles understood
 • Pauses between entries (+30.0s) show where the app stalled
 • Collapse repeated lines: 500 identical retries become one line with ×500
 • Jump to the next error, copy the visible lines
 • Error timeline: see when errors piled up, click to jump there
 • Click a line to read it in full, with all JSON fields; share a link to any line (#L120)
 • Fast on 150,000+ lines: big logs are parsed in a background worker
+• Press ? to see every keyboard shortcut
 
 LEAKED SECRET DETECTION
 • Flags AWS keys, GitHub / GitLab / Slack / Stripe tokens, Google API keys, JWTs, private keys, passwords in URLs and password=… settings
@@ -49,16 +51,22 @@ FILTER, HIGHLIGHT, PODS
 
 BOOKMARKS, GROUPS, FOLLOW
 • Bookmark lines with notes and copy a Markdown report for a ticket
-• Field statistics: the most common values, one click to filter
+• Field statistics: the most common values, and for numbers and durations min / median / p95 / p99 / max; one click shows only the slow requests
 • The same error grouped: count, pods, first and last time
 • Follow a log that is still being written
 • JSON as a table, and local time instead of UTC
 
 COMPARE TWO LOGS OR JSON DOCUMENTS
+• What broke this run? The errors that a failing CI run has and the passing one doesn't are listed first, matched by message and stack trace with times and IDs ignored
 • Line diff with the changed words marked; unchanged parts folded
 • Ignore timestamps, IDs and durations to compare two runs of the same CI job
 • JSON compared by key, with a list of changed paths
 • Right-click → Compare… on one text, then on the other
+
+SETTINGS
+• Your own level words (ALERT → ERROR, AUDIT → INFO) and your own secret patterns
+• Dark or light theme, or like the system
+• English and Ukrainian
 
 TEXT TOOLS: select text, right-click, then Logbeam
 • Format / minify JSON
@@ -71,8 +79,9 @@ TEXT TOOLS: select text, right-click, then Logbeam
 • Mask secrets
 • "Replace selection" writes the result back into inputs and editors
 
-PRIVACY
+PRIVACY AND PERMISSIONS
 Everything runs locally in your browser. Logbeam has no server and no analytics, and it sends no network requests.
+It needs activeTab, scripting, storage and contextMenus. Access to a site is optional and asked for one site at a time, only when you choose "Remember dark mode for this site" or "Open logs automatically" there.
 
 Open source: https://github.com/andronaft/Logbeam
 
@@ -95,7 +104,8 @@ Does not collect or transmit any user data.
 ## Assets
 
 - Icon: `icons/icon128.png`
-- Screenshots, 1280×800 JPEG: `docs/store/1-log-viewer.jpg` … `5-popup.jpg` (upload in order)
+- Screenshots, 1280×800 JPEG: `docs/store/1-log-viewer.jpg` … `5-popup.jpg` (upload in order); addons.mozilla.org also takes
+  `6-light-theme.jpg` … `8-json.jpg`
 - Small promo tile, 440×280: `docs/store/promo-small-440x280.jpg`
 - Marquee, 1400×560: `docs/store/promo-marquee-1400x560.jpg`
 - Regenerate all of them with `npm run e2e && npm run store-assets`
