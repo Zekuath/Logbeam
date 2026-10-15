@@ -258,6 +258,7 @@ button:hover { border-color: var(--accent); }
 }
 .help-box h2 { margin: 0 0 10px; font-size: 14px; color: var(--accent); }
 .help-row { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; padding: 3px 0; }
+.help-keys { display: inline-flex; gap: 4px; }
 .help kbd {
   display: inline-block; min-width: 22px; padding: 1px 6px; text-align: center; color: var(--fg);
   font: 12px ui-monospace, Menlo, Consolas, monospace;

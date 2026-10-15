@@ -4,6 +4,8 @@ import { t } from '../shared/i18n';
 const SHORTCUTS: { keys: string[]; message: string; text: string }[] = [
   { keys: ['/'], message: 'keySearch', text: 'Search' },
   { keys: ['Enter'], message: 'keyPin', text: 'Pin the search as a highlight (in the search box)' },
+  { keys: ['j', 'k'], message: 'keyNextPrevLine', text: 'Next / previous line' },
+  { keys: ['g', 'G'], message: 'keyFirstLastLine', text: 'First / last line' },
   { keys: ['e'], message: 'keyNextError', text: 'Next error' },
   { keys: ['s'], message: 'keyNextSecret', text: 'Next leaked secret' },
   { keys: ['m'], message: 'keyBookmark', text: 'Bookmark the selected line' },
