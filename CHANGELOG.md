@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+- **GitHub Actions sections.** The `##[group]` … `##[endgroup]` sections of a raw GitHub Actions log are folded
+  like in GitHub, with their size and error count; the ones with errors start open. Click ▸ to open one, or
+  **Sections** to open or close them all. A search looks inside closed sections too (#14, suggested on Reddit).
+- **For contributors**: a contributing guide, a security policy, issue and pull request templates.
+
+### Improved
+
+- A `##[group]` or `::group::` line starts an entry of its own, so a log without timestamps doesn't carry the
+  last level into the next section.
+
 ## 0.7.0
 
 ### Added

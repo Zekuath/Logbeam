@@ -219,6 +219,59 @@ export function diffErrors(before: LogLine[], after: LogLine[]): ErrorDiff {
   };
 }
 
+// ---- GitHub Actions groups ---------------------------------------------------------------
+
+export interface LogGroup {
+  /** The text after ##[group]: "Run npm test", "Fetching the repository". */
+  title: string;
+  /** Line number of the ##[group] line. */
+  start: number;
+  /** Line number of its ##[endgroup], or of the line before the next group or the log's last line. */
+  end: number;
+  /** ERROR entries inside the group. */
+  errors: number;
+}
+
+// GitHub Actions raw logs: "2026-10-04T10:00:00.1234567Z ##[group]Run npm test"; ::group:: as written in a
+// workflow, or printed by tools that run locally (act)
+const GROUP_START = /^(?:\d{4}-\d{2}-\d{2}T[\d:.]+Z\s)?(?:##\[group\]|::group::)(.*)$/;
+const GROUP_END = /^(?:\d{4}-\d{2}-\d{2}T[\d:.]+Z\s)?(?:##\[endgroup\]|::endgroup::)\s*$/;
+
+/**
+ * The ##[group] … ##[endgroup] sections of a GitHub Actions log, which the GitHub UI folds. Groups don't
+ * nest there, so a new group ends the one before it.
+ */
+export function findGroups(lines: LogLine[]): LogGroup[] {
+  const groups: LogGroup[] = [];
+  let open: LogGroup | null = null;
+  for (const line of lines) {
+    const rest = splitSource(line.text).rest;
+    const start = GROUP_START.exec(rest);
+    if (start) {
+      if (open) open.end = line.number - 1;
+      open = { title: start[1].trim(), start: line.number, end: line.number, errors: 0 };
+      groups.push(open);
+    } else if (open) {
+      open.end = line.number;
+      if (line.level === 'ERROR' && !line.continuation) open.errors++;
+      if (GROUP_END.test(rest)) open = null;
+    }
+  }
+  return groups;
+}
+
+/** Leaves out the lines inside closed groups; their ##[group] line stays as the group's header. */
+export function foldGroups<T extends LogLine>(lines: T[], groups: LogGroup[], open: Set<number>): T[] {
+  const closed = groups.filter((g) => !open.has(g.start) && g.end > g.start);
+  if (closed.length === 0) return lines;
+  let i = 0;
+  return lines.filter((line) => {
+    while (i < closed.length && closed[i].end < line.number) i++;
+    const group = closed[i];
+    return !group || line.number <= group.start || line.number > group.end;
+  });
+}
+
 // ---- time zones --------------------------------------------------------------------------
 
 export type TimeMode = 'utc' | 'local';

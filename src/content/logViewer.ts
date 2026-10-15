@@ -21,6 +21,8 @@ import {
   bookmarkReport,
   defaultColumns,
   fieldStats,
+  findGroups,
+  foldGroups,
   formatDuration,
   formatTime,
   groupErrors,
@@ -240,6 +242,10 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   const sourceIndex = new Map(sources.map((source, i) => [source, i]));
   const fields = commonFields(allLines);
   let visible: CollapsedLine[] = [];
+  // GitHub Actions ##[group] sections: folded like in GitHub, except the ones with errors
+  let groups = findGroups(allLines);
+  let groupByStart = new Map(groups.map((g) => [g.start, g]));
+  const openGroups = new Set(groups.filter((g) => g.errors > 0).map((g) => g.start));
 
   // ---- toolbar ----------------------------------------------------------------------------
   const chipCounts: Partial<Record<Level | 'UNKNOWN', [HTMLButtonElement, HTMLSpanElement]>> = {};
@@ -352,6 +358,12 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     { className: 'toggle', title: 'The same error grouped: how often, in which pods, first and last time' },
     'Groups',
   );
+  const sectionsButton = el(
+    'button',
+    { className: 'toggle', title: 'Open or close all ##[group] sections of a GitHub Actions log' },
+    'Sections',
+  );
+  sectionsButton.hidden = groups.length === 0;
   const tableToggle = el('button', { className: 'toggle', title: 'Show JSON records as a table' }, 'Table');
   tableToggle.hidden = !isMostlyJson(allLines);
   const followToggle = el(
@@ -403,6 +415,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     secretsGroup,
     nextError,
     groupsButton,
+    sectionsButton,
     tableToggle,
     timeButton,
     el('span', { className: 'group' }, bookmarksButton, reportButton),
@@ -845,6 +858,18 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     void copy(report, `Report with ${bookmarks.length} line${bookmarks.length > 1 ? 's' : ''} copied`);
   });
   helpButton.addEventListener('click', () => (help.hidden = !help.hidden));
+  function toggleGroup(start: number): void {
+    if (openGroups.has(start)) openGroups.delete(start);
+    else openGroups.add(start);
+    void refresh();
+  }
+  sectionsButton.addEventListener('click', () => {
+    // open them all, or close them all once all are open
+    const allOpen = groups.every((g) => openGroups.has(g.start));
+    openGroups.clear();
+    if (!allOpen) for (const group of groups) openGroups.add(group.start);
+    void refresh();
+  });
   groupsButton.addEventListener('click', () => {
     groupsPanel.hidden = !groupsPanel.hidden;
     groupsButton.classList.toggle('on', !groupsPanel.hidden);
@@ -917,6 +942,11 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     counts = countByLevel(allLines);
     secretCount = allLines.filter((l) => l.secret).length;
     timeline = buildTimeline(allLines);
+    // a group that was still being written may have ended or got errors; new ones start folded
+    groups = findGroups(allLines);
+    groupByStart = new Map(groups.map((g) => [g.start, g]));
+    for (const group of groups) if (group.errors > 0 && group.start > offset) openGroups.add(group.start);
+    sectionsButton.hidden = groups.length === 0;
     regexSearch.dispose();
     regexSearch = new RegexSearch(allLines.map((l) => l.text));
     for (const [key, entry] of Object.entries(chipCounts)) {
@@ -970,6 +1000,10 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     const row = target.closest<HTMLElement>('.row');
     if (!row) return;
     const number = Number(row.dataset.number);
+    if (target.closest('.fold-toggle')) {
+      toggleGroup(number);
+      return;
+    }
     if (target.classList.contains('ln')) {
       select(number);
       void copy(lineLink(number), `Link to line ${number} copied`);
@@ -1115,6 +1149,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     } else {
       filtered = filterLines(base, { ...state, query: fieldMode ? '' : state.query });
     }
+    // a search or an error group looks inside closed sections too
+    if (groups.length > 0 && !state.query && !state.group) filtered = foldGroups(filtered, groups, openGroups);
     visible = state.collapse ? collapseRepeats(filtered) : filtered.map((l) => ({ ...l, repeat: 1 }));
     spacer.style.height = `${visible.length * ROW_HEIGHT}px`;
     const conditionNote = conditions ? ` · ${conditions.length} field condition${conditions.length > 1 ? 's' : ''}` : '';
@@ -1147,6 +1183,22 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
           if (line.gap >= 10_000) gap.classList.add('big');
         }
         const txt = el('span', { className: 'txt' });
+        const group = groupByStart.get(line.number);
+        if (group) {
+          const open = openGroups.has(group.start);
+          row.classList.add('group-head');
+          const size = group.end - group.start;
+          txt.append(
+            el(
+              'span',
+              { className: 'fold-toggle', title: open ? 'Hide this section' : 'Show this section' },
+              `${open ? '▾' : '▸'} ${size.toLocaleString()} line${size === 1 ? '' : 's'}`,
+            ),
+          );
+          if (group.errors > 0) {
+            txt.append(el('span', { className: 'group-errors' }, `✖ ${group.errors.toLocaleString()}`));
+          }
+        }
         if (line.repeat > 1) {
           txt.append(el('span', { className: 'repeat', title: 'Similar consecutive lines' }, `×${line.repeat}`));
         }
@@ -1170,9 +1222,14 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   void loadBookmarks();
   scroller.focus();
 
-  // #L120 in the address opens the viewer on that line
+  // #L120 in the address opens the viewer on that line, opening its section if it is folded
   const hash = LINE_HASH.exec(location.hash);
   if (hash) {
+    const inside = groups.find((g) => Number(hash[1]) > g.start && Number(hash[1]) <= g.end);
+    if (inside && !openGroups.has(inside.start)) {
+      openGroups.add(inside.start);
+      void refresh();
+    }
     const index = visible.findIndex((l) => l.number === Number(hash[1]));
     if (index >= 0) scrollToIndex(index, true);
   }

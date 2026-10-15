@@ -24,6 +24,7 @@ LOG VIEWER (Ctrl+Shift+L)
 • Plain-text and regex search with highlighted matches
 • JSON logs (Logstash, pino, bunyan, zap) shown as readable lines
 • ANSI colours from CI runners and Docker; GitHub Actions ##[error] / ##[warning] lines and Jenkins consoles understood
+• GitHub Actions ##[group] sections folded like in GitHub; the ones with errors open
 • Pauses between entries (+30.0s) show where the app stalled
 • Collapse repeated lines: 500 identical retries become one line with ×500
 • Jump to the next error, copy the visible lines

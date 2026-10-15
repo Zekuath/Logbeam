@@ -235,6 +235,18 @@ button:hover { border-color: var(--accent); }
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px;
 }
 
+/* GitHub Actions ##[group] sections */
+.row.group-head .txt { font-weight: 600; }
+.fold-toggle {
+  display: inline-block; margin-right: 8px; padding: 0 6px; border-radius: 8px; cursor: pointer;
+  background: var(--panel); color: var(--info); font-size: 11px; line-height: 16px; font-weight: 400;
+}
+.fold-toggle:hover { color: var(--accent); }
+.group-errors {
+  display: inline-block; margin-right: 8px; padding: 0 6px; border-radius: 8px;
+  background: var(--error-row); color: var(--error); font-size: 11px; line-height: 16px;
+}
+
 /* keyboard shortcuts ( ? ) */
 .help {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;

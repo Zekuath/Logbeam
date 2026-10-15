@@ -59,6 +59,7 @@ piped to a file…) with **Ctrl+Shift+L** (**⌃⇧L** on Mac) or from the popup
 - **Error groups**: each different error once, with its count, pods and first and last time
 - **Follow** a log that is still being written: new lines are added every 3 seconds
 - **JSON table** with the columns you choose, and **local time** instead of UTC
+- **GitHub Actions sections**: `##[group]` steps folded like in GitHub, the ones with errors open
 - **ANSI colours** from CI and Docker logs, **your own level words** (`ALERT` → ERROR), and a **light theme**
 - **Compare** this log with another one, e.g. a passing and a failing CI run, with the **new errors** listed
   first (see below)

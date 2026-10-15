@@ -4,6 +4,8 @@ import {
   bookmarkReport,
   defaultColumns,
   diffErrors,
+  findGroups,
+  foldGroups,
   fieldStats,
   formatDuration,
   formatTime,
@@ -253,5 +255,40 @@ describe('appendedText', () => {
     expect(appendedText('a\n', 'a\nb\nc')).toEqual({ added: 'b\n', consumed: 4 });
     expect(appendedText('a\n', 'a\n')).toEqual({ added: '', consumed: 2 });
     expect(appendedText('a\nb\n', 'x\n')).toBeNull();
+  });
+});
+
+describe('GitHub Actions groups', () => {
+  const log = parseLog(
+    [
+      '2026-10-04T10:00:00.1000000Z ##[group]Run actions/checkout@v4',
+      '2026-10-04T10:00:00.2000000Z with:',
+      '2026-10-04T10:00:00.3000000Z   repository: andronaft/Logbeam',
+      '2026-10-04T10:00:00.4000000Z ##[endgroup]',
+      '2026-10-04T10:00:01.0000000Z Syncing repository: andronaft/Logbeam',
+      '2026-10-04T10:00:02.0000000Z ##[group]Run npm test',
+      '2026-10-04T10:00:03.0000000Z ERROR 1 test failed',
+      '2026-10-04T10:00:04.0000000Z ##[group]Post job cleanup.',
+      '2026-10-04T10:00:05.0000000Z ##[error]Process completed with exit code 1.',
+      '::group::Local run',
+      'output',
+    ].join('\n'),
+  );
+
+  it('finds the groups, their ends and their errors; a new group ends an unclosed one', () => {
+    expect(findGroups(log).map((g) => [g.title, g.start, g.end, g.errors])).toEqual([
+      ['Run actions/checkout@v4', 1, 4, 0],
+      ['Run npm test', 6, 7, 1],
+      ['Post job cleanup.', 8, 9, 1],
+      ['Local run', 10, 11, 0],
+    ]);
+  });
+
+  it('folds closed groups down to their header line', () => {
+    const groups = findGroups(log);
+    const shown = foldGroups(log, groups, new Set([6])).map((l) => l.number);
+    expect(shown).toEqual([1, 5, 6, 7, 8, 10]);
+    expect(foldGroups(log, groups, new Set(groups.map((g) => g.start)))).toHaveLength(log.length);
+    expect(foldGroups(log, [], new Set())).toBe(log);
   });
 });

@@ -77,7 +77,25 @@ const jenkinsLog = [
   '\tat com.example.deploy.Main.main(Main.java:12)',
   'Finished: FAILURE',
 ].join('\n');
+// a GitHub Actions raw log: steps and tools print ##[group] sections, which GitHub folds
+const actionsLog = [
+  '2026-10-04T10:00:00.1000000Z ##[group]Run actions/checkout@v4',
+  '2026-10-04T10:00:00.2000000Z with:',
+  '2026-10-04T10:00:00.3000000Z   repository: andronaft/Logbeam',
+  '2026-10-04T10:00:00.4000000Z   fetch-depth: 1',
+  '2026-10-04T10:00:00.5000000Z ##[endgroup]',
+  '2026-10-04T10:00:01.0000000Z Syncing repository: andronaft/Logbeam',
+  '2026-10-04T10:00:02.0000000Z ##[group]Run npm ci',
+  '2026-10-04T10:00:03.0000000Z added 812 packages in 3s',
+  '2026-10-04T10:00:03.1000000Z ##[endgroup]',
+  '2026-10-04T10:00:04.0000000Z ##[group]Run npm test',
+  '2026-10-04T10:00:05.0000000Z FAIL test/payments.test.ts > refunds partially',
+  '2026-10-04T10:00:05.1000000Z ERROR expected 200 but got 500',
+  '2026-10-04T10:00:05.2000000Z ##[endgroup]',
+  '2026-10-04T10:00:06.0000000Z ##[error]Process completed with exit code 1.',
+].join('\n');
 const plainPages = {
+  '/actions.log': actionsLog,
   '/jenkins.log': jenkinsLog,
   '/ansi.log': ansiLog,
   '/redos.log': redosLog,
@@ -246,6 +264,36 @@ check(
   await jenkins.locator('.inspector .full-text').textContent(),
 );
 await jenkins.close();
+
+// ---- GitHub Actions sections ----------------------------------------------------------------
+const actions = await context.newPage();
+watch(actions);
+await actions.goto(`${base}/actions.log`);
+await actions.addScriptTag({ path: path.join(dist, 'logViewer.js') });
+await actions.waitForSelector('.row');
+const actionsStatus = () => actions.locator('.status').textContent();
+const toggles = () => actions.locator('.fold-toggle').allTextContents();
+check(
+  'GitHub Actions sections are folded, except the one with an error',
+  (await toggles()).join(' | ') === '▸ 4 lines | ▸ 2 lines | ▾ 3 lines' && (await actionsStatus()).startsWith('8 / 14'),
+  `${(await toggles()).join(' | ')} · ${await actionsStatus()}`,
+);
+check('a section shows its errors', (await actions.locator('.group-errors').textContent()) === '✖ 1');
+await actions.screenshot({ path: 'docs/sections.png' });
+await actions.locator('.row[data-number="1"] .fold-toggle').click();
+check(
+  'a click opens a section',
+  (await actions.locator('.row[data-number="3"]').count()) === 1 && (await actionsStatus()).startsWith('12 / 14'),
+  await actionsStatus(),
+);
+await actions.locator('.toggle', { hasText: 'Sections' }).click();
+check('Sections opens them all', (await actionsStatus()).startsWith('14 / 14'), await actionsStatus());
+await actions.locator('.toggle', { hasText: 'Sections' }).click();
+check('…and closes them all', (await actionsStatus()).startsWith('5 / 14'), await actionsStatus());
+await actions.locator('.search').fill('packages');
+await actions.waitForTimeout(300);
+check('search looks inside closed sections', (await actionsStatus()).startsWith('1 / 14'), await actionsStatus());
+await actions.close();
 
 // ---- link to a line -----------------------------------------------------------------------
 const linked = await context.newPage();
