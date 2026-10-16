@@ -1,3 +1,5 @@
+// Node's zlib builds a .gz fixture; Node types aren't global here (tsconfig "types")
+/// <reference types="node" />
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { commonFields, filterByFields, numericValue, parseFieldQuery, plainFields } from '../src/lib/fields';
