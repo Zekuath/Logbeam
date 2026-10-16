@@ -15,6 +15,8 @@ import {
   localizeTimestamp,
   numericStats,
   tableCells,
+  quoteCsv,
+  toCsv,
 } from '../src/lib/insights';
 import { parseLog } from '../src/lib/logs';
 
@@ -247,6 +249,28 @@ describe('JSON table', () => {
       cells: ['ERROR', 'down'],
       rest: '@timestamp=2026-10-04T10:00:01Z logger=db retries=3',
     });
+  });
+
+  it('quotes fields containing commas, double quotes and newlines per RFC 4180', () => {
+    expect(quoteCsv('simple')).toBe('simple');
+    expect(quoteCsv('a,b')).toBe('"a,b"');
+    expect(quoteCsv('he said "ok"')).toBe('"he said ""ok"""');
+    expect(quoteCsv('line1\nline2')).toBe('"line1\nline2"');
+    expect(quoteCsv('line1\r\nline2')).toBe('"line1\r\nline2"');
+    expect(quoteCsv('a, "b"\nc')).toBe('"a, ""b""\nc"');
+  });
+
+  it('exports chosen columns as CSV with header', () => {
+    const csv = toCsv(json, ['level', 'message']);
+    expect(csv).toBe('level,message\r\nINFO,ok\r\nERROR,down\r\n');
+  });
+
+  it('masks secrets in CSV values when mask option is provided', () => {
+    const logs = parseLog(['{"level":"INFO","key":"secret123456"}'].join('\n'));
+    const csv = toCsv(logs, ['level', 'key'], {
+      mask: (val) => val.replace('secret123456', '***'),
+    });
+    expect(csv).toBe('level,key\r\nINFO,***\r\n');
   });
 });
 

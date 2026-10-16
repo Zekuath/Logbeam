@@ -653,6 +653,17 @@ check(
 );
 check('JSON records become table rows', (await insights.locator('.row[data-number="1"] .cell').count()) === 4);
 await insights.screenshot({ path: 'docs/table.png' });
+
+const csvDownload = insights.waitForEvent('download');
+await insights.locator('.toggle', { hasText: 'Save' }).click();
+const savedCsv = await csvDownload;
+const csvText = readFileSync(await savedCsv.path(), 'utf8');
+check(
+  'Save with the table on downloads a .csv with header and shown rows',
+  savedCsv.suggestedFilename() === 'fields.filtered.csv' && csvText.startsWith('time,level,service,msg'),
+  `${savedCsv.suggestedFilename()}: ${csvText.slice(0, 40)}`,
+);
+
 await insights.locator('.toggle', { hasText: 'Table' }).click();
 
 await insights.locator('.toggle', { hasText: 'UTC' }).click();

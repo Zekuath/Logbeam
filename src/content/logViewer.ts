@@ -31,6 +31,7 @@ import {
   localizeTimestamp,
   numericStats,
   tableCells,
+  toCsv,
 } from '../lib/insights';
 import { findSecrets, maskSecrets, setCustomSecretPatterns } from '../lib/secrets';
 import { loadSettings, saveSettings } from '../shared/settings';
@@ -802,6 +803,20 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   });
 
   saveButton.addEventListener('click', () => {
+    if (state.table) {
+      const csv = toCsv(visible, state.table, {
+        mask: state.maskSecrets ? maskSecrets : undefined,
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const link = el('a', {
+        href: URL.createObjectURL(blob),
+        download: `${options.title.replace(/[\\/:*?"<>|]+/g, '_').replace(/\.log$/i, '')}.filtered.csv`,
+      });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+      showToast(`${visible.length.toLocaleString()} rows saved`);
+      return;
+    }
     const blob = new Blob([visible.map(displayText).join('\n') + '\n'], { type: 'text/plain' });
     const link = el('a', {
       href: URL.createObjectURL(blob),
@@ -1117,6 +1132,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     groupChip.hidden = state.group === null;
     if (state.group) groupChip.textContent = `Only ${state.group.label} ×`;
     columnsLabel.hidden = state.table === null;
+    saveButton.title = state.table ? 'Download the shown rows as a CSV file' : 'Download the visible lines as a file';
     highlightChips.replaceChildren(
       ...state.highlights.map((term, i) => {
         const chip = el('button', { className: `toggle hl-chip hl-${i}`, title: 'Remove this highlight' }, `${term} ×`);

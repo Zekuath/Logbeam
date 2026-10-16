@@ -349,6 +349,41 @@ export function tableCells(line: LogLine, columns: string[]): { cells: string[];
   return { cells, rest };
 }
 
+/**
+ * Quotes a single CSV field value per RFC 4180.
+ * Fields containing double-quotes, commas, or line breaks are wrapped in double-quotes,
+ * with any existing double-quotes escaped as `""`.
+ */
+export function quoteCsv(value: string): string {
+  if (value.includes('"') || value.includes(',') || value.includes('\n') || value.includes('\r')) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+export interface CsvOptions {
+  /** Masks secrets in the cell values. */
+  mask?: (text: string) => string;
+}
+
+/**
+ * Converts log rows to a CSV formatted string per RFC 4180.
+ * Includes a header row of column names, followed by each row's cells.
+ */
+export function toCsv(rows: LogLine[], columns: string[], options?: CsvOptions): string {
+  const header = columns.map(quoteCsv).join(',');
+  const lines = [header];
+  for (const row of rows) {
+    const { cells } = tableCells(row, columns);
+    const formatted = cells.map((cell) => {
+      const masked = options?.mask ? options.mask(cell) : cell;
+      return quoteCsv(masked);
+    });
+    lines.push(formatted.join(','));
+  }
+  return lines.join('\r\n') + '\r\n';
+}
+
 // ---- following a growing log -------------------------------------------------------------
 
 /**
