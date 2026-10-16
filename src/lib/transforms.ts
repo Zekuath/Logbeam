@@ -65,7 +65,7 @@ function parseJson(input: string): unknown {
   try {
     return JSON.parse(input.trim());
   } catch (e) {
-    throw new Error(`Not valid JSON: ${(e as Error).message}`);
+    throw new Error(`Not valid JSON: ${(e as Error).message}`, { cause: e });
   }
 }
 
