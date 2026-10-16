@@ -59,6 +59,32 @@
       </section>
 
       <section>
+        <h2 data-i18n="optionsLevels">Your own level words</h2>
+        <p class="help">
+          <span data-i18n="optionsLevelsHelp1">Words your logs use for a level that Logbeam doesn't know, such as</span>
+          <code>ALERT</code>, <code>CRIT</code> <span data-i18n="optionsOr">or</span> <code>AUDIT</code>.
+          <span data-i18n="optionsLevelsHelp2">A word is matched as written where a level usually is</span>
+          (<code>ALERT disk full</code>, <code>[ALERT]</code>), <span data-i18n="optionsLevelsHelp3">and in any case after</span>
+          <code>level=</code>
+          <span data-i18n="optionsLevelsHelp4">or in a JSON level field.</span>
+        </p>
+        <div id="levels"></div>
+        <button id="add-level" data-i18n="optionsAddLevel">Add a level word</button>
+      </section>
+
+      <section>
+        <h2 data-i18n="optionsAppearance">Appearance</h2>
+        <label class="row">
+          <span data-i18n="optionsThemeLabel">Colours of the log viewer, Compare, Settings and the popup:</span>
+          <select id="theme">
+            <option value="auto" data-i18n="optionsThemeAuto">Like the system</option>
+            <option value="dark" data-i18n="optionsThemeDark">Dark</option>
+            <option value="light" data-i18n="optionsThemeLight">Light</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
         <h2 data-i18n="optionsShortcuts">Keyboard shortcuts</h2>
         <p class="help">
           <a href="#" id="shortcuts" data-i18n="optionsChangeShortcuts">Change the shortcuts</a>

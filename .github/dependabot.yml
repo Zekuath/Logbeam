@@ -1,0 +1,23 @@
+# Weekly updates of the build and test tools, grouped into one pull request so CI runs once.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-tools:
+        patterns: ['*']
+        update-types: [minor, patch]
+    open-pull-requests-limit: 3
+    ignore:
+      # typescript-eslint supports TypeScript below 6.1; TypeScript 7 waits until it does
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']

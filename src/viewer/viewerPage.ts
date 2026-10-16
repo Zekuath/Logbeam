@@ -1,5 +1,7 @@
 import { openFile, openViewer } from '../content/logViewer';
 import { localizePage, t } from '../shared/i18n';
+import { loadSettings } from '../shared/settings';
+import { applyTheme } from '../shared/theme';
 import { readViewerText } from '../shared/viewerTabs';
 
 /**
@@ -9,6 +11,7 @@ import { readViewerText } from '../shared/viewerTabs';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 async function start(): Promise<void> {
+  applyTheme((await loadSettings()).theme);
   const id = new URLSearchParams(location.search).get('id');
   const stored = id ? await readViewerText(id) : null;
   if (stored) {

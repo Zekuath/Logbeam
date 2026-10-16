@@ -1,6 +1,6 @@
 # Logbeam Privacy Policy
 
-_Last updated: October 4, 2026 (version 0.5.0)_
+_Last updated: October 15, 2026 (version 0.7.0)_
 
 Logbeam is a browser extension for Chrome, Edge, Opera and Firefox that runs entirely in your browser.
 
@@ -15,7 +15,7 @@ Logbeam is a browser extension for Chrome, Edge, Opera and Firefox that runs ent
 - **Secret detection.** Looking for keys, tokens and passwords in a log also happens only inside your browser;
   nothing found is stored or sent anywhere.
 - **Settings.** The lists of sites where you chose "Remember dark mode" or "Open logs automatically", and the
-  settings page (pause threshold, your own secret patterns, which tools to show), are saved with `chrome.storage.sync`.
+  settings page (pause threshold, your own secret patterns and level words, the theme, which tools to show), are saved with `chrome.storage.sync`.
   If Chrome sync is on, Google syncs this list between your own browsers, as it does for all extension settings.
   Logbeam itself never receives it.
 - **Bookmarks and notes** on a log's lines are kept in memory (`chrome.storage.session`) for that page and are gone

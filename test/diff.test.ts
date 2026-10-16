@@ -113,6 +113,11 @@ describe('normalizeLogLine', () => {
 
   it('keeps numbers that matter', () => {
     expect(normalizeLogLine('exit code 137, 3 tests failed')).toBe('exit code 137, 3 tests failed');
+    // short commit SHAs and cache keys, but not words made of hex letters
+    expect(normalizeLogLine('Checking out 41aa0be9c2, cache node-modules-9f2c71d')).toBe(
+      'Checking out <id>, cache node-modules-<id>',
+    );
+    expect(normalizeLogLine('defaced facade added 1234567')).toBe('defaced facade added 1234567');
   });
 });
 

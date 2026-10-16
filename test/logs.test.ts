@@ -364,3 +364,54 @@ describe('multi-line JSON records', () => {
     expect(lines[0].secret).toBe(true);
   });
 });
+
+describe('CI logs', () => {
+  it('reads GitHub Actions error and warning annotations', () => {
+    const lines = parseLog(
+      [
+        '2026-10-04T10:00:00.1234567Z ##[group]Run npm test',
+        '2026-10-04T10:00:05.0000000Z ##[warning]Node 16 is deprecated',
+        '2026-10-04T10:00:06.0000000Z ##[error]Process completed with exit code 1.',
+      ].join('\n'),
+    );
+    expect(lines.map((l) => l.level)).toEqual([null, 'WARN', 'ERROR']);
+  });
+
+  it('gives a Jenkins console without timestamps its own entries and finds bare exceptions', () => {
+    const lines = parseLog(
+      [
+        'Started by user admin',
+        '[Pipeline] sh',
+        '+ mvn -B test',
+        '[WARNING] Using platform encoding',
+        '[Pipeline] sh',
+        '+ ./deploy.sh',
+        'java.lang.IllegalStateException: boom',
+        '\tat com.example.Deploy.run(Deploy.java:12)',
+        'Caused by: java.io.IOException: disk full',
+        '\t... 3 more',
+        'Finished: FAILURE',
+      ].join('\n'),
+    );
+    expect(lines.map((l) => [l.level, l.continuation])).toEqual([
+      [null, false],
+      [null, false],
+      [null, false],
+      ['WARN', false],
+      [null, false],
+      [null, false],
+      ['ERROR', false],
+      ['ERROR', true],
+      ['ERROR', true],
+      ['ERROR', true],
+      ['ERROR', false],
+    ]);
+  });
+
+  it('keeps an exception printed under a warning with that warning', () => {
+    const lines = parseLog(
+      ['2026-10-04 10:00:00 WARN Retrying', 'java.net.SocketTimeoutException: Read timed out', '\tat X.y(X.java:1)'].join('\n'),
+    );
+    expect(lines.map((l) => l.level)).toEqual(['WARN', 'WARN', 'WARN']);
+  });
+});

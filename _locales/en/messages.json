@@ -667,5 +667,141 @@
   },
   "compareUnchanged_other": {
     "message": "⋯ {n} unchanged lines"
+  },
+  "keysTitle": {
+    "message": "Keyboard shortcuts"
+  },
+  "keySearch": {
+    "message": "Search"
+  },
+  "keyPin": {
+    "message": "Pin the search as a highlight (in the search box)"
+  },
+  "keyNextPrevLine": {
+    "message": "Next / previous line"
+  },
+  "keyFirstLastLine": {
+    "message": "First / last line"
+  },
+  "keyNextError": {
+    "message": "Next error"
+  },
+  "keyNextSecret": {
+    "message": "Next leaked secret"
+  },
+  "keyBookmark": {
+    "message": "Bookmark the selected line"
+  },
+  "keyNextBookmark": {
+    "message": "Next bookmark"
+  },
+  "keyEscape": {
+    "message": "Clear the search, or close the line details"
+  },
+  "keyHelp": {
+    "message": "Show or hide these keys"
+  },
+  "localeCode": {
+    "message": "en",
+    "description": "The code of this translation (en, uk, …). Used for plural forms and the page language; not shown."
+  },
+  "viewerHelpTitle": {
+    "message": "Keyboard shortcuts ( ? )"
+  },
+  "viewerStatMin": {
+    "message": "min"
+  },
+  "viewerStatMedian": {
+    "message": "median"
+  },
+  "viewerStatMax": {
+    "message": "max"
+  },
+  "viewerRowsSaved_one": {
+    "message": "{n} row saved"
+  },
+  "viewerRowsSaved_other": {
+    "message": "{n} rows saved"
+  },
+  "viewerSaveCsvTitle": {
+    "message": "Download the shown rows as a CSV file"
+  },
+  "viewerSections": {
+    "message": "Sections"
+  },
+  "viewerSectionsTitle": {
+    "message": "Open or close all ##[group] sections of a GitHub Actions log"
+  },
+  "viewerSectionHide": {
+    "message": "Hide this section"
+  },
+  "viewerSectionShow": {
+    "message": "Show this section"
+  },
+  "viewerSectionLines_one": {
+    "message": "{n} line"
+  },
+  "viewerSectionLines_other": {
+    "message": "{n} lines"
+  },
+  "compareShowLine": {
+    "message": "Show line {n} in the diff"
+  },
+  "compareErrorKinds_one": {
+    "message": "{n} kind of error"
+  },
+  "compareErrorKinds_other": {
+    "message": "{n} kinds of error"
+  },
+  "compareNewErrors": {
+    "message": "New errors in After: {kinds}"
+  },
+  "compareNoNewErrors": {
+    "message": "No new errors in After"
+  },
+  "compareAlsoBefore": {
+    "message": "{kinds} also in Before"
+  },
+  "compareGone": {
+    "message": "Gone since Before: {kinds}"
+  },
+  "optionsLevelPlaceholder": {
+    "message": "Word, e.g. ALERT"
+  },
+  "optionsLevels": {
+    "message": "Your own level words"
+  },
+  "optionsLevelsHelp1": {
+    "message": "Words your logs use for a level that Logbeam doesn't know, such as"
+  },
+  "optionsOr": {
+    "message": "or"
+  },
+  "optionsLevelsHelp2": {
+    "message": "A word is matched as written where a level usually is"
+  },
+  "optionsLevelsHelp3": {
+    "message": "and in any case after"
+  },
+  "optionsLevelsHelp4": {
+    "message": "or in a JSON level field."
+  },
+  "optionsAddLevel": {
+    "message": "Add a level word"
+  },
+  "optionsAppearance": {
+    "message": "Appearance"
+  },
+  "optionsThemeLabel": {
+    "message": "Colours of the log viewer, Compare, Settings and the popup:"
+  },
+  "optionsThemeAuto": {
+    "message": "Like the system"
+  },
+  "optionsThemeDark": {
+    "message": "Dark"
+  },
+  "optionsThemeLight": {
+    "message": "Light"
   }
 }

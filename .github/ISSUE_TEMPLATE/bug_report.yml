@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in Logbeam doesn't work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: And what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: >-
+        The steps, and if you can, a few lines of the log that show it. Please remove or mask anything secret
+        first (Logbeam's Mask button or "Mask secrets" in the right-click menu helps).
+      placeholder: |
+        1. Open a raw log from …
+        2. Press …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Logbeam version
+      description: In chrome://extensions or about:addons
+      placeholder: '0.7.0'
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options: [Chrome, Firefox, Edge, Opera, Brave, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Screenshots, the site the log was on, errors in the browser console.

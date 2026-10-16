@@ -715,5 +715,159 @@
   },
   "compareUnchanged_other": {
     "message": "⋯ {n} незміненого рядка"
+  },
+  "keysTitle": {
+    "message": "Гарячі клавіші"
+  },
+  "keySearch": {
+    "message": "Пошук"
+  },
+  "keyPin": {
+    "message": "Закріпити пошук як підсвітку (у полі пошуку)"
+  },
+  "keyNextPrevLine": {
+    "message": "Наступний / попередній рядок"
+  },
+  "keyFirstLastLine": {
+    "message": "Перший / останній рядок"
+  },
+  "keyNextError": {
+    "message": "Наступна помилка"
+  },
+  "keyNextSecret": {
+    "message": "Наступний секрет, що потрапив у лог"
+  },
+  "keyBookmark": {
+    "message": "Закладка на вибраний рядок"
+  },
+  "keyNextBookmark": {
+    "message": "Наступна закладка"
+  },
+  "keyEscape": {
+    "message": "Очистити пошук або закрити деталі рядка"
+  },
+  "keyHelp": {
+    "message": "Показати або сховати цей список"
+  },
+  "localeCode": {
+    "message": "uk",
+    "description": "The code of this translation (en, uk, …). Used for plural forms and the page language; not shown."
+  },
+  "viewerHelpTitle": {
+    "message": "Гарячі клавіші ( ? )"
+  },
+  "viewerStatMin": {
+    "message": "мін"
+  },
+  "viewerStatMedian": {
+    "message": "медіана"
+  },
+  "viewerStatMax": {
+    "message": "макс"
+  },
+  "viewerRowsSaved_one": {
+    "message": "Збережено {n} рядок"
+  },
+  "viewerRowsSaved_few": {
+    "message": "Збережено {n} рядки"
+  },
+  "viewerRowsSaved_many": {
+    "message": "Збережено {n} рядків"
+  },
+  "viewerRowsSaved_other": {
+    "message": "Збережено {n} рядка"
+  },
+  "viewerSaveCsvTitle": {
+    "message": "Завантажити показані рядки як CSV-файл"
+  },
+  "viewerSections": {
+    "message": "Розділи"
+  },
+  "viewerSectionsTitle": {
+    "message": "Розгорнути або згорнути всі розділи ##[group] логу GitHub Actions"
+  },
+  "viewerSectionHide": {
+    "message": "Згорнути розділ"
+  },
+  "viewerSectionShow": {
+    "message": "Розгорнути розділ"
+  },
+  "viewerSectionLines_one": {
+    "message": "{n} рядок"
+  },
+  "viewerSectionLines_few": {
+    "message": "{n} рядки"
+  },
+  "viewerSectionLines_many": {
+    "message": "{n} рядків"
+  },
+  "viewerSectionLines_other": {
+    "message": "{n} рядка"
+  },
+  "compareShowLine": {
+    "message": "Показати рядок {n} у порівнянні"
+  },
+  "compareErrorKinds_one": {
+    "message": "{n} вид помилки"
+  },
+  "compareErrorKinds_few": {
+    "message": "{n} види помилок"
+  },
+  "compareErrorKinds_many": {
+    "message": "{n} видів помилок"
+  },
+  "compareErrorKinds_other": {
+    "message": "{n} виду помилки"
+  },
+  "compareNewErrors": {
+    "message": "Нові помилки в «Після»: {kinds}"
+  },
+  "compareNoNewErrors": {
+    "message": "У «Після» нових помилок немає"
+  },
+  "compareAlsoBefore": {
+    "message": "{kinds} є і в «До»"
+  },
+  "compareGone": {
+    "message": "Зникли з «До»: {kinds}"
+  },
+  "optionsLevelPlaceholder": {
+    "message": "Слово, напр. ALERT"
+  },
+  "optionsLevels": {
+    "message": "Власні слова для рівнів"
+  },
+  "optionsLevelsHelp1": {
+    "message": "Слова, якими ваші логи позначають рівень, якого Logbeam не знає, наприклад"
+  },
+  "optionsOr": {
+    "message": "або"
+  },
+  "optionsLevelsHelp2": {
+    "message": "Слово шукається як написане там, де зазвичай стоїть рівень"
+  },
+  "optionsLevelsHelp3": {
+    "message": "і в будь-якому регістрі після"
+  },
+  "optionsLevelsHelp4": {
+    "message": "або в полі рівня JSON."
+  },
+  "optionsAddLevel": {
+    "message": "Додати слово"
+  },
+  "optionsAppearance": {
+    "message": "Вигляд"
+  },
+  "optionsThemeLabel": {
+    "message": "Кольори переглядача логів, порівняння, налаштувань і спливного вікна:"
+  },
+  "optionsThemeAuto": {
+    "message": "Як у системі"
+  },
+  "optionsThemeDark": {
+    "message": "Темна"
+  },
+  "optionsThemeLight": {
+    "message": "Світла"
   }
 }

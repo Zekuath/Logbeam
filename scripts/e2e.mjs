@@ -57,7 +57,47 @@ const podsLog = [
   '[pod/payments-7d9f8-x2k4p/app] 2026-10-04 10:00:02 ERROR connection refused',
   '[pod/payments-7d9f8-q9z1m/app] 2026-10-04 10:00:03 INFO ok',
 ].join('\n');
+const E = '\x1b';
+const ansiLog = [
+  `${E}[90m2026-10-10 10:00:00${E}[0m ${E}[32mINFO${E}[0m build started`,
+  `${E}[90m2026-10-10 10:00:05${E}[0m ${E}[1;31mERROR${E}[0m tests failed`,
+  `${E}[2K${E}[1G${E}[33mWARN${E}[0m retrying`,
+].join('\n');
+// a Jenkins console: no timestamps, so a level must not carry on past a step or a command
+const jenkinsLog = [
+  'Started by user admin',
+  '[Pipeline] sh',
+  '+ mvn -B test',
+  '[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources',
+  '[INFO] Tests run: 42, Failures: 0',
+  '[Pipeline] sh',
+  '+ ./deploy.sh staging',
+  'java.lang.IllegalStateException: no healthy upstream for payments',
+  '\tat com.example.deploy.Rollout.check(Rollout.java:57)',
+  '\tat com.example.deploy.Main.main(Main.java:12)',
+  'Finished: FAILURE',
+].join('\n');
+// a GitHub Actions raw log: steps and tools print ##[group] sections, which GitHub folds
+const actionsLog = [
+  '2026-10-04T10:00:00.1000000Z ##[group]Run actions/checkout@v4',
+  '2026-10-04T10:00:00.2000000Z with:',
+  '2026-10-04T10:00:00.3000000Z   repository: andronaft/Logbeam',
+  '2026-10-04T10:00:00.4000000Z   fetch-depth: 1',
+  '2026-10-04T10:00:00.5000000Z ##[endgroup]',
+  '2026-10-04T10:00:01.0000000Z Syncing repository: andronaft/Logbeam',
+  '2026-10-04T10:00:02.0000000Z ##[group]Run npm ci',
+  '2026-10-04T10:00:03.0000000Z added 812 packages in 3s',
+  '2026-10-04T10:00:03.1000000Z ##[endgroup]',
+  '2026-10-04T10:00:04.0000000Z ##[group]Run npm test',
+  '2026-10-04T10:00:05.0000000Z FAIL test/payments.test.ts > refunds partially',
+  '2026-10-04T10:00:05.1000000Z ERROR expected 200 but got 500',
+  '2026-10-04T10:00:05.2000000Z ##[endgroup]',
+  '2026-10-04T10:00:06.0000000Z ##[error]Process completed with exit code 1.',
+].join('\n');
 const plainPages = {
+  '/actions.log': actionsLog,
+  '/jenkins.log': jenkinsLog,
+  '/ansi.log': ansiLog,
   '/redos.log': redosLog,
   '/pem.log': pemLog,
   '/pretty.log': prettyLog,
@@ -120,6 +160,10 @@ const context = await chromium.launchPersistentContext(mkdtempSync(path.join(tmp
   viewport: { width: 1280, height: 800 },
   // a time zone other than UTC, so "Local time" visibly changes the times
   timezoneId: 'Europe/Kyiv',
+  // numbers in the viewer are formatted for the browser's locale; pin it, whatever the machine's is
+  locale: 'en-US',
+  // the docs screenshots show the dark theme; the light one is checked on its own below
+  colorScheme: 'dark',
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
 });
 const errors = [];
@@ -184,6 +228,90 @@ check('JSON records show their fields', (await page.locator('.inspector .json').
 await page.keyboard.press('Escape');
 check('Esc closes the inspector', await page.locator('.inspector').isHidden());
 
+// ---- keyboard shortcuts ( ? ) ---------------------------------------------------------------
+await page.keyboard.press('?');
+check('? lists the keyboard shortcuts', (await page.locator('.help-box').textContent()).includes('Next leaked secret'));
+await page.keyboard.press('e');
+check('keys still work under the shortcuts list', await page.locator('.inspector').isVisible());
+await page.keyboard.press('Escape');
+check(
+  'Esc closes the shortcuts list first',
+  (await page.locator('.help').isHidden()) && (await page.locator('.inspector').isVisible()),
+);
+await page.keyboard.press('Escape');
+await page.locator('.toggle', { hasText: /^\?$/ }).click();
+check('the ? button opens the list', await page.locator('.help').isVisible());
+await page.screenshot({ path: 'docs/shortcuts.png' });
+await page.locator('.help').click({ position: { x: 5, y: 5 } });
+check('a click outside closes the list', await page.locator('.help').isHidden());
+
+// ---- move between lines ( j / k / g / G ) ----------------------------------------------------
+await page.keyboard.press('j');
+const firstLine = await page.locator('.row.selected .ln').textContent();
+check('j selects the next line', Boolean(firstLine));
+await page.keyboard.press('j');
+const secondLine = await page.locator('.row.selected .ln').textContent();
+check('j selects the next line again', Number(secondLine) > Number(firstLine));
+await page.keyboard.press('k');
+check('k selects the previous line', (await page.locator('.row.selected .ln').textContent()) === firstLine);
+await page.keyboard.press('G');
+const lastLine = await page.locator('.row.selected .ln').textContent();
+check('G jumps to the last line', Number(lastLine) > Number(secondLine));
+await page.keyboard.press('g');
+check('g jumps to the first line', (await page.locator('.row.selected .ln').textContent()) === '1');
+await page.keyboard.press('Escape');
+check('Esc clears the selection', await page.locator('.inspector').isHidden());
+
+// ---- Jenkins console ----------------------------------------------------------------------
+const jenkins = await context.newPage();
+watch(jenkins);
+await jenkins.goto(`${base}/jenkins.log`);
+await jenkins.addScriptTag({ path: path.join(dist, 'logViewer.js') });
+await jenkins.waitForSelector('.row');
+const levelOf = (n) => jenkins.locator(`.row[data-number="${n}"]`).getAttribute('class');
+check(
+  'a Jenkins warning stops at the next step',
+  (await levelOf(4)).includes('lvl-WARN') && !(await levelOf(6)).includes('lvl-WARN') && !(await levelOf(7)).includes('lvl-WARN'),
+  `${await levelOf(4)} | ${await levelOf(6)} | ${await levelOf(7)}`,
+);
+await jenkins.keyboard.press('e');
+check(
+  'next error finds a bare Java exception in a Jenkins console',
+  (await jenkins.locator('.inspector .full-text').textContent()).startsWith('java.lang.IllegalStateException'),
+  await jenkins.locator('.inspector .full-text').textContent(),
+);
+await jenkins.close();
+
+// ---- GitHub Actions sections ----------------------------------------------------------------
+const actions = await context.newPage();
+watch(actions);
+await actions.goto(`${base}/actions.log`);
+await actions.addScriptTag({ path: path.join(dist, 'logViewer.js') });
+await actions.waitForSelector('.row');
+const actionsStatus = () => actions.locator('.status').textContent();
+const toggles = () => actions.locator('.fold-toggle').allTextContents();
+check(
+  'GitHub Actions sections are folded, except the one with an error',
+  (await toggles()).join(' | ') === '▸ 4 lines | ▸ 2 lines | ▾ 3 lines' && (await actionsStatus()).startsWith('8 / 14'),
+  `${(await toggles()).join(' | ')} · ${await actionsStatus()}`,
+);
+check('a section shows its errors', (await actions.locator('.group-errors').textContent()) === '✖ 1');
+await actions.screenshot({ path: 'docs/sections.png' });
+await actions.locator('.row[data-number="1"] .fold-toggle').click();
+check(
+  'a click opens a section',
+  (await actions.locator('.row[data-number="3"]').count()) === 1 && (await actionsStatus()).startsWith('12 / 14'),
+  await actionsStatus(),
+);
+await actions.locator('.toggle', { hasText: 'Sections' }).click();
+check('Sections opens them all', (await actionsStatus()).startsWith('14 / 14'), await actionsStatus());
+await actions.locator('.toggle', { hasText: 'Sections' }).click();
+check('…and closes them all', (await actionsStatus()).startsWith('5 / 14'), await actionsStatus());
+await actions.locator('.search').fill('packages');
+await actions.waitForTimeout(300);
+check('search looks inside closed sections', (await actionsStatus()).startsWith('1 / 14'), await actionsStatus());
+await actions.close();
+
 // ---- link to a line -----------------------------------------------------------------------
 const linked = await context.newPage();
 watch(linked);
@@ -202,7 +330,8 @@ await big.addScriptTag({ path: path.join(dist, 'logViewer.js') });
 await big.waitForSelector('.row', { timeout: 60_000 });
 check(
   `${BIG_LINES.toLocaleString('en')} lines parse`,
-  (await big.locator('.status').textContent()) === `${BIG_LINES.toLocaleString()} / ${BIG_LINES.toLocaleString()} lines`,
+  (await big.locator('.status').textContent()) ===
+    `${BIG_LINES.toLocaleString('en-US')} / ${BIG_LINES.toLocaleString('en-US')} lines`,
   `${Date.now() - started} ms`,
 );
 check('big log parsed in a Web Worker', (await big.evaluate(() => document.documentElement.dataset.logbeamParser)) === 'worker');
@@ -223,7 +352,8 @@ check(
 );
 check(
   'fallback parses everything',
-  (await strict.locator('.status').textContent()) === `${BIG_LINES.toLocaleString()} / ${BIG_LINES.toLocaleString()} lines`,
+  (await strict.locator('.status').textContent()) ===
+    `${BIG_LINES.toLocaleString('en-US')} / ${BIG_LINES.toLocaleString('en-US')} lines`,
 );
 await strict.close();
 
@@ -457,7 +587,14 @@ const insightStatus = () => insights.locator('.status').textContent();
 
 await insights.locator('.row[data-number="2"] .txt').click();
 await insights.keyboard.press('m');
-await insights.locator('.inspector .note').fill('the timeout starts here');
+// typed key by key: letters like e (next error) and m (bookmark) are text in the note, not shortcuts
+await insights.locator('.inspector .note').click();
+await insights.keyboard.type('the timeout starts here');
+check(
+  'typing a note doesn’t trigger shortcuts',
+  (await insights.locator('.inspector .note').inputValue()) === 'the timeout starts here' && /#L2$/.test(insights.url()),
+  `${await insights.locator('.inspector .note').inputValue()} ${insights.url()}`,
+);
 await insights.locator('.row[data-number="5"] .txt').click();
 await insights.locator('.inspector button', { hasText: 'Bookmark' }).click();
 check('bookmarks are counted', (await insights.locator('.bookmarks').textContent()) === '★ 2');
@@ -480,6 +617,26 @@ check('a value filters by it', (await insights.locator('.search').inputValue()) 
 await insights.locator('.search').fill('');
 await insights.keyboard.press('Escape');
 
+// a field of durations: percentiles, and a click shows the slow entries
+await insights.locator('.row[data-number="4"] .txt').click();
+await insights.locator('.inspector .field', { hasText: 'duration' }).click();
+const percentiles = (await insights.locator('.inspector .percentile').allTextContents()).join(' | ');
+check(
+  'duration fields show min, median, p95, p99 and max',
+  percentiles === 'min 5ms | median 40ms | p95 1.2s | p99 1.2s | max 1.2s',
+  percentiles,
+);
+await insights.waitForTimeout(2500); // let the Report toast fade
+await insights.screenshot({ path: 'docs/percentiles.png' });
+await insights.locator('.inspector .percentile', { hasText: 'median' }).click();
+check(
+  'a percentile shows the entries at or above it',
+  (await insights.locator('.search').inputValue()) === 'duration>=40ms' && (await insightStatus()).startsWith('4 /'),
+  `${await insights.locator('.search').inputValue()} ${await insightStatus()}`,
+);
+await insights.locator('.search').fill('');
+await insights.keyboard.press('Escape');
+
 await insights.locator('.toggle', { hasText: 'Groups' }).click();
 const groupItems = await insights.locator('.group-item .n').allTextContents();
 check('errors are grouped', groupItems.join(',') === '×1,×1,×1', groupItems.join(','));
@@ -496,6 +653,17 @@ check(
 );
 check('JSON records become table rows', (await insights.locator('.row[data-number="1"] .cell').count()) === 4);
 await insights.screenshot({ path: 'docs/table.png' });
+
+const csvDownload = insights.waitForEvent('download');
+await insights.locator('.toggle', { hasText: 'Save' }).click();
+const savedCsv = await csvDownload;
+const csvText = readFileSync(await savedCsv.path(), 'utf8');
+check(
+  'Save with the table on downloads a .csv with header and shown rows',
+  savedCsv.suggestedFilename() === 'fields.filtered.csv' && csvText.startsWith('time,level,service,msg'),
+  `${savedCsv.suggestedFilename()}: ${csvText.slice(0, 40)}`,
+);
+
 await insights.locator('.toggle', { hasText: 'Table' }).click();
 
 await insights.locator('.toggle', { hasText: 'UTC' }).click();
@@ -538,6 +706,22 @@ check('a pod chip hides its lines', (await pods.locator('.status').textContent()
 await pods.screenshot({ path: 'docs/pods.png' });
 await pods.close();
 
+// ---- ANSI colour codes --------------------------------------------------------------------
+const coloured = await context.newPage();
+watch(coloured);
+await coloured.goto(`${base}/ansi.log`);
+await coloured.addScriptTag({ path: path.join(dist, 'logViewer.js') });
+await coloured.waitForSelector('.row');
+const colouredText = (await coloured.locator('.txt').allTextContents()).join('\n');
+check('colour codes are taken out of the text', !colouredText.includes('\x1b') && !colouredText.includes('[0m'), colouredText);
+check(
+  'levels are read through colour codes',
+  (await coloured.locator('.chip.lvl-ERROR .count').textContent()) === '1' &&
+    (await coloured.locator('.chip.lvl-WARN .count').textContent()) === '1',
+);
+check('the colours are drawn', (await coloured.locator('.txt .ansi-red.ansi-bold').textContent()) === 'ERROR');
+await coloured.close();
+
 // ---- settings, pasted text ----------------------------------------------------------------
 const options = await context.newPage();
 watch(options);
@@ -556,33 +740,60 @@ await options.locator('.pattern input').nth(3).fill('(a+)+$');
 check('a risky pattern is refused', (await options.locator('#problems').textContent()).includes('Nested quantifiers'));
 await options.locator('.pattern button').nth(1).click();
 await options.locator('.tools label', { hasText: 'Sort lines' }).locator('input').uncheck();
+await options.locator('#add-level').click();
+await options.locator('.level input').fill('ALERT');
+await options.locator('.level select').selectOption('ERROR');
 await options.waitForTimeout(600);
 const stored = await options.evaluate(() => chrome.storage.sync.get('settings'));
 check(
   'settings are saved',
   stored.settings.gapThresholdMs === 5000 &&
     stored.settings.customSecrets.length === 1 &&
-    stored.settings.hiddenTools.includes('sort-lines'),
+    stored.settings.hiddenTools.includes('sort-lines') &&
+    stored.settings.customLevels[0]?.word === 'ALERT',
   JSON.stringify(stored.settings),
 );
 await options.screenshot({ path: 'docs/settings.png', fullPage: true });
+
+// light theme: from the system when "Like the system", and always when chosen
+const background = (page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+check('dark by default here (the test browser asks for dark)', (await background(options)) === 'rgb(15, 20, 25)');
+await options.emulateMedia({ colorScheme: 'light' });
+check('light when the system is light', (await background(options)) === 'rgb(255, 255, 255)');
+await options.emulateMedia({ colorScheme: 'dark' });
+await options.locator('#theme').selectOption('light');
+check('light when chosen, even on a dark system', (await background(options)) === 'rgb(255, 255, 255)');
+await options.screenshot({ path: 'docs/settings-light.png', fullPage: true });
+const lightViewer = await context.newPage();
+await lightViewer.goto(`${base}/app.log`);
+await lightViewer.addScriptTag({ path: path.join(dist, 'logViewer.js') });
+await lightViewer.waitForSelector('.row');
+await lightViewer.evaluate(() => (document.documentElement.dataset.theme = 'light'));
+check('the log viewer has a light theme', (await background(lightViewer)) === 'rgb(255, 255, 255)');
+await lightViewer.screenshot({ path: 'docs/log-viewer-light.png' });
+await lightViewer.close();
+await options.locator('#theme').selectOption('auto');
+await options.waitForTimeout(600);
 
 // "Open text as log" in the popup: the viewer on the extension's own page
 const pastedPage = context.waitForEvent('page');
 await popup.bringToFront();
 await popup
   .locator('#input')
-  .fill(`${fieldsLog}\n2026-10-04T10:31:00Z INFO token acme_12ab34cd\n2026-10-04T10:40:00Z INFO later`);
+  .fill(
+    `${fieldsLog}\n2026-10-04T10:31:00Z INFO token acme_12ab34cd\n2026-10-04T10:40:00Z INFO later\n2026-10-04T10:45:00Z ALERT disk almost full`,
+  );
 await popup.locator('#open-pasted').click();
 const pasted = await pastedPage;
 watch(pasted);
 await pasted.waitForSelector('.row');
 check(
   'pasted text opens in the viewer',
-  (await pasted.locator('.status').textContent()) === '9 / 9 lines',
+  (await pasted.locator('.status').textContent()) === '10 / 10 lines',
   await pasted.locator('.status').textContent(),
 );
 check('the custom secret pattern is used', (await pasted.locator('.toggle.secrets').textContent()) === '🔑 1');
+check('the custom level word is used', (await pasted.locator('.chip.lvl-ERROR .count').textContent()) === '5');
 check(
   'the pause threshold comes from the settings',
   (await pasted.locator('.toggle', { hasText: 'Gaps' }).getAttribute('title')).includes('5s'),
@@ -643,6 +854,56 @@ check(
   'big numbers are compared exactly',
   (await compare.locator('#changes .after').last().textContent()) === '12345678901234567891',
 );
+
+// new errors: the last green CI run against the failing one
+const ciRun = (day, sha, lines) =>
+  [
+    `2026-10-${day}T09:00:01.120Z INFO  Checking out ${sha}`,
+    `2026-10-${day}T09:00:04.310Z INFO  npm ci: added 812 packages in 3.1s`,
+    `2026-10-${day}T09:00:09.002Z WARN  Cache miss for key node-modules-${sha.slice(0, 7)}`,
+    `2026-10-${day}T09:00:12.448Z INFO  Starting payments-service on port 8080`,
+    ...lines,
+    `2026-10-${day}T09:01:40.900Z INFO  Done in 99.8s`,
+  ].join('\n');
+const green = ciRun('03', '41aa0be9c2', [
+  '2026-10-03T09:00:20.100Z ERROR Flaky probe timed out after 3012ms',
+  '\tat com.example.health.Probe.check(Probe.java:20)',
+  '2026-10-03T09:01:30.500Z INFO  Tests: 120 passed',
+]);
+const red = ciRun('04', '9f2c71d03e', [
+  '2026-10-04T09:00:20.300Z ERROR Connection refused: db:5432 after 3 retries',
+  '\tat org.postgresql.Driver.connect(Driver.java:285)',
+  '\tat com.example.payments.Db.open(Db.java:41)',
+  '2026-10-04T09:00:24.700Z ERROR Connection refused: db:5432 after 3 retries',
+  '\tat org.postgresql.Driver.connect(Driver.java:285)',
+  '\tat com.example.payments.Db.open(Db.java:41)',
+  '2026-10-04T09:01:30.800Z ERROR PaymentsIT.refundsPartially failed: expected 200 but was 500',
+  '2026-10-04T09:01:31.000Z INFO  Tests: 119 passed, 1 failed',
+]);
+await compare.locator('#clear').click();
+await compare.locator('#left').fill(green);
+await compare.locator('#right').fill(red);
+await compare.waitForSelector('#errors:not([hidden]) .error');
+check(
+  'Compare lists the errors that are new in After',
+  (await compare.locator('.errors-head').textContent()) === 'New errors in After: 2 kinds of error' &&
+    (await compare.locator('#errors > .error .n').allTextContents()).join(',') === '×2,×1',
+  await compare.locator('#errors').textContent(),
+);
+check(
+  'errors that are gone are listed apart',
+  (await compare.locator('.gone summary').textContent()) === 'Gone since Before: 1 kind of error',
+);
+await compare.locator('#errors > .error').first().click();
+check(
+  'a new error scrolls the diff to it',
+  (await compare.locator('.line.flash').getAttribute('data-right')) === '5',
+  await compare.locator('.line.flash').getAttribute('data-right'),
+);
+await compare.locator('#ignore-volatile').check();
+await compare.waitForTimeout(400);
+await compare.evaluate(() => window.scrollTo(0, 0));
+await compare.screenshot({ path: 'docs/compare-errors.png' });
 
 // a tab's own badge, once cleared, falls back to the global one (used while a compare waits)
 const fallback = await popup.evaluate(async () => {

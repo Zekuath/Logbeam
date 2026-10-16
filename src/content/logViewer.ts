@@ -10,6 +10,7 @@ import {
   filterLines,
   formatGap,
   LogParser,
+  ParseOptions,
   splitLines,
   splitSource,
 } from '../lib/logs';
@@ -20,21 +21,29 @@ import {
   bookmarkReport,
   defaultColumns,
   fieldStats,
+  findGroups,
+  foldGroups,
+  formatDuration,
   formatTime,
   groupErrors,
   isMostlyJson,
   lineFields,
   localizeTimestamp,
+  numericStats,
   tableCells,
+  toCsv,
 } from '../lib/insights';
 import { findSecrets, maskSecrets, setCustomSecretPatterns } from '../lib/secrets';
 import { loadSettings, saveSettings } from '../shared/settings';
+import { applyTheme } from '../shared/theme';
 import { Range, searchRanges, toSegments } from '../lib/segments';
 import { buildTimeline } from '../lib/timeline';
+import { keepInView, targetLineIndex } from '../lib/navigation';
 import { parseLogAsync } from './parseAsync';
 import { COMPARE_ADD } from '../shared/compare';
 import { t, tn, uiLanguage } from '../shared/i18n';
 import { RegexSearch } from './regexSearch';
+import { shortcutsHelp } from './shortcuts';
 import { VIEWER_CSS } from './viewerStyles';
 
 /**
@@ -148,14 +157,20 @@ export async function openViewer(text: string = readPageText(), name?: string): 
     ),
   );
 
-  const lines = await parseLogAsync(text, (done, total) => {
-    bar.style.width = `${Math.round((done / total) * 100)}%`;
-    label.textContent = t('viewerParsingProgress', 'Parsing log… {done} / {total} lines', {
-      done: done.toLocaleString(),
-      total: total.toLocaleString(),
-    });
-  });
   const settings = await loadSettings();
+  applyTheme(settings.theme);
+  const parseOptions = { customLevels: settings.customLevels };
+  const lines = await parseLogAsync(
+    text,
+    (done, total) => {
+      bar.style.width = `${Math.round((done / total) * 100)}%`;
+      label.textContent = t('viewerParsingProgress', 'Parsing log… {done} / {total} lines', {
+        done: done.toLocaleString(),
+        total: total.toLocaleString(),
+      });
+    },
+    parseOptions,
+  );
   setCustomSecretPatterns(settings.customSecrets);
   if (settings.customSecrets.some((custom) => custom.pattern.trim())) {
     // the worker parsed without the user's own patterns: mark those lines here
@@ -169,6 +184,7 @@ export async function openViewer(text: string = readPageText(), name?: string): 
     title,
     gapThreshold: settings.gapThresholdMs,
     timeMode: settings.timeMode,
+    parseOptions,
     signal: viewer.signal,
   });
 }
@@ -183,6 +199,7 @@ interface ViewerOptions {
   title: string;
   gapThreshold: number;
   timeMode: TimeMode;
+  parseOptions: ParseOptions;
   signal: AbortSignal;
 }
 
@@ -232,6 +249,10 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   const sourceIndex = new Map(sources.map((source, i) => [source, i]));
   const fields = commonFields(allLines);
   let visible: CollapsedLine[] = [];
+  // GitHub Actions ##[group] sections: folded like in GitHub, except the ones with errors
+  let groups = findGroups(allLines);
+  let groupByStart = new Map(groups.map((g) => [g.start, g]));
+  const openGroups = new Set(groups.filter((g) => g.errors > 0).map((g) => g.start));
 
   // ---- toolbar ----------------------------------------------------------------------------
   const chipCounts: Partial<Record<Level | 'UNKNOWN', [HTMLButtonElement, HTMLSpanElement]>> = {};
@@ -396,6 +417,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     },
     t('viewerReport', 'Report'),
   );
+  const helpButton = el('button', { className: 'toggle', title: t('viewerHelpTitle', 'Keyboard shortcuts ( ? )') }, '?');
   const groupsButton = el(
     'button',
     {
@@ -409,6 +431,15 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     { className: 'toggle', title: t('viewerTableTitle', 'Show JSON records as a table') },
     t('viewerTable', 'Table'),
   );
+  const sectionsButton = el(
+    'button',
+    {
+      className: 'toggle',
+      title: t('viewerSectionsTitle', 'Open or close all ##[group] sections of a GitHub Actions log'),
+    },
+    t('viewerSections', 'Sections'),
+  );
+  sectionsButton.hidden = groups.length === 0;
   tableToggle.hidden = !isMostlyJson(allLines);
   const followToggle = el(
     'button',
@@ -471,6 +502,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     secretsGroup,
     nextError,
     groupsButton,
+    sectionsButton,
     tableToggle,
     timeButton,
     el('span', { className: 'group' }, bookmarksButton, reportButton),
@@ -481,6 +513,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     openButton,
     fileInput,
     rawButton,
+    helpButton,
     status,
     fieldList,
   );
@@ -573,7 +606,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   groupsPanel.hidden = true;
   const toast = el('div', { className: 'toast' });
   const dropHint = el('div', { className: 'drop-hint' }, t('viewerDropHint', 'Drop a .log or .gz file to open it'));
-  body.append(toolbar, subbar, timelineEl, groupsPanel, scroller, inspector, toast, dropHint);
+  const help = shortcutsHelp();
+  body.append(toolbar, subbar, timelineEl, groupsPanel, scroller, inspector, toast, dropHint, help);
 
   const displayText = (line: LogLine) => {
     const text = localizeTimestamp(line.text, state.timeMode);
@@ -607,6 +641,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     const query = fieldMode ? '' : state.query;
     const ranges: Range[] = state.searchError ? [] : searchRanges(head, query, state.regex, state.caseSensitive, 'match');
     state.highlights.forEach((term, i) => ranges.push(...searchRanges(head, term, false, false, `hl hl-${i}`)));
+    // colours from ANSI codes, unless the shown text was changed (masked, local time)
+    if (line.ansi && text === line.text) ranges.push(...line.ansi);
     if (line.source !== null) {
       const prefix = text.length - splitSource(text).rest.length;
       ranges.push({ start: 0, end: prefix, cls: `src src-${(sourceIndex.get(line.source) ?? 0) % 8}` });
@@ -702,16 +738,56 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     inspector.replaceChildren(...parts);
   }
 
-  /** Top values of a field over the lines shown now; click a value to filter by it. */
+  /** Shows only the entries whose field is at least this number: duration>=950ms. */
+  function filterAtLeast(key: string, value: string): void {
+    search.value = `${key}>=${value}`;
+    state.query = search.value;
+    void refresh();
+  }
+
+  /**
+   * Top values of a field over the lines shown now; click a value to filter by it. A field of numbers
+   * or durations also gets min, median, p95, p99 and max; click one to see the entries at or above it.
+   */
   function showStats(box: HTMLElement, key: string): void {
     const { values, total } = fieldStats(visible, key);
     const max = values[0]?.count ?? 1;
+    const numbers = numericStats(visible, key);
+    const percentiles: Node[] = [];
+    if (numbers) {
+      const show = (n: number) =>
+        numbers.duration ? formatDuration(n) : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      const parts = [
+        [t('viewerStatMin', 'min'), numbers.min],
+        [t('viewerStatMedian', 'median'), numbers.median],
+        ['p95', numbers.p95],
+        ['p99', numbers.p99],
+        [t('viewerStatMax', 'max'), numbers.max],
+      ] as const;
+      percentiles.push(
+        el(
+          'div',
+          { className: 'percentiles' },
+          ...parts.map(([name, n]) => {
+            const chip = el(
+              'button',
+              { className: 'percentile', title: t('viewerShowOnly', 'Show only {filter}', { filter: `${key} ≥ ${show(n)}` }) },
+              el('span', { className: 'name' }, name),
+              ` ${show(n)}`,
+            );
+            chip.addEventListener('click', () => filterAtLeast(key, numbers.duration ? `${n}ms` : String(n)));
+            return chip;
+          }),
+        ),
+      );
+    }
     box.replaceChildren(
       el(
         'div',
         { className: 'stats-head' },
         t('viewerStatsHead', '{field}: {n} of the shown entries have it', { field: key, n: total.toLocaleString() }),
       ),
+      ...percentiles,
       ...values.map(({ value, count }) => {
         const bar = el('span', { className: 'bar' });
         bar.style.width = `${Math.max(2, Math.round((count / max) * 100))}%`;
@@ -838,6 +914,20 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   });
 
   saveButton.addEventListener('click', () => {
+    if (state.table) {
+      const csv = toCsv(visible, state.table, {
+        mask: state.maskSecrets ? maskSecrets : undefined,
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const link = el('a', {
+        href: URL.createObjectURL(blob),
+        download: `${options.title.replace(/[\\/:*?"<>|]+/g, '_').replace(/\.log$/i, '')}.filtered.csv`,
+      });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+      showToast(tn('viewerRowsSaved', visible.length, '{n} row saved', '{n} rows saved'));
+      return;
+    }
     const blob = new Blob([visible.map(displayText).join('\n') + '\n'], { type: 'text/plain' });
     const link = el('a', {
       href: URL.createObjectURL(blob),
@@ -897,6 +987,19 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     });
     void copy(report, tn('viewerReportCopied', bookmarks.length, 'Report with {n} line copied', 'Report with {n} lines copied'));
   });
+  helpButton.addEventListener('click', () => (help.hidden = !help.hidden));
+  function toggleGroup(start: number): void {
+    if (openGroups.has(start)) openGroups.delete(start);
+    else openGroups.add(start);
+    void refresh();
+  }
+  sectionsButton.addEventListener('click', () => {
+    // open them all, or close them all once all are open
+    const allOpen = groups.every((g) => openGroups.has(g.start));
+    openGroups.clear();
+    if (!allOpen) for (const group of groups) openGroups.add(group.start);
+    void refresh();
+  });
   groupsButton.addEventListener('click', () => {
     groupsPanel.hidden = !groupsPanel.hidden;
     groupsButton.classList.toggle('on', !groupsPanel.hidden);
@@ -941,7 +1044,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   let followTimer: number | undefined;
   let consumed = options.text.length;
   let followedText = options.text;
-  let lastHeads = new LogParser();
+  let lastHeads = new LogParser(options.parseOptions);
   async function followOnce(): Promise<void> {
     let text: string;
     try {
@@ -969,6 +1072,11 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     counts = countByLevel(allLines);
     secretCount = allLines.filter((l) => l.secret).length;
     timeline = buildTimeline(allLines);
+    // a group that was still being written may have ended or got errors; new ones start folded
+    groups = findGroups(allLines);
+    groupByStart = new Map(groups.map((g) => [g.start, g]));
+    for (const group of groups) if (group.errors > 0 && group.start > offset) openGroups.add(group.start);
+    sectionsButton.hidden = groups.length === 0;
     regexSearch.dispose();
     regexSearch = new RegexSearch(allLines.map((l) => l.text));
     for (const [key, entry] of Object.entries(chipCounts)) {
@@ -993,7 +1101,7 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   followToggle.addEventListener('click', () => {
     if (followTimer !== undefined) return stopFollowing();
     // new lines are parsed from where the first parse ended (its last entry's level carries over)
-    lastHeads = new LogParser();
+    lastHeads = new LogParser(options.parseOptions);
     lastHeads.push(splitLines(options.text).slice(-200));
     followToggle.classList.add('on');
     scroller.scrollTop = scroller.scrollHeight;
@@ -1026,6 +1134,10 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     const row = target.closest<HTMLElement>('.row');
     if (!row) return;
     const number = Number(row.dataset.number);
+    if (target.closest('.fold-toggle')) {
+      toggleGroup(number);
+      return;
+    }
     if (target.classList.contains('ln')) {
       select(number);
       void copy(lineLink(number), t('viewerLineLinkCopied', 'Link to line {n} copied', { n: number }));
@@ -1041,6 +1153,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     (event) => {
       if (event.target === search) {
         if (event.key === 'Escape') {
+          // a search still waiting for typing to stop would run after this and redraw again
+          clearTimeout(debounce);
           search.value = '';
           state.query = '';
           void refresh();
@@ -1049,9 +1163,29 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
         return;
       }
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === '/') {
+      // typing in the bookmark note or the Columns box: letters are text there, not shortcuts
+      const target = event.target as HTMLElement;
+      if (event.key !== 'Escape' && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
+        return;
+      if (event.key === '?') {
+        help.hidden = !help.hidden;
+      } else if (event.key === 'Escape' && !help.hidden) {
+        help.hidden = true;
+      } else if (event.key === '/') {
         event.preventDefault();
         search.focus();
+      } else if (event.key === 'j') {
+        event.preventDefault();
+        moveSelection(1);
+      } else if (event.key === 'k') {
+        event.preventDefault();
+        moveSelection(-1);
+      } else if (event.key === 'g') {
+        event.preventDefault();
+        selectLineAtIndex(0);
+      } else if (event.key === 'G') {
+        event.preventDefault();
+        selectLineAtIndex(visible.length - 1);
       } else if (event.key === 'e') {
         jumpToNext((l) => l.level === 'ERROR' && !l.continuation);
       } else if (event.key === 's' && secretCount > 0) {
@@ -1069,6 +1203,25 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
 
   scroller.addEventListener('scroll', () => render(), { passive: true });
   window.addEventListener('resize', () => render(), { signal });
+
+  function selectLineAtIndex(index: number): void {
+    if (visible.length === 0) return;
+    const clamped = Math.max(0, Math.min(visible.length - 1, index));
+    select(visible[clamped].number);
+    const newScroll = keepInView(clamped, ROW_HEIGHT, scroller.scrollTop, scroller.clientHeight);
+    if (newScroll !== scroller.scrollTop) {
+      scroller.scrollTop = newScroll;
+      render();
+    }
+  }
+
+  function moveSelection(delta: number): void {
+    if (visible.length === 0) return;
+    const current = state.selected !== null ? visible.findIndex((l) => l.number === state.selected) : -1;
+    const top = Math.max(0, Math.floor(scroller.scrollTop / ROW_HEIGHT));
+    const target = targetLineIndex(current, delta, visible.length, top);
+    if (target >= 0) selectLineAtIndex(target);
+  }
 
   function scrollToIndex(index: number, selectIt: boolean): void {
     scroller.scrollTop = Math.max(0, index * ROW_HEIGHT - scroller.clientHeight / 3);
@@ -1097,6 +1250,9 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     groupChip.hidden = state.group === null;
     if (state.group) groupChip.textContent = `${t('viewerOnlyGroup', 'Only {group}', { group: state.group.label })} ×`;
     columnsLabel.hidden = state.table === null;
+    saveButton.title = state.table
+      ? t('viewerSaveCsvTitle', 'Download the shown rows as a CSV file')
+      : t('viewerSaveTitle', 'Download the visible lines as a file');
     highlightChips.replaceChildren(
       ...state.highlights.map((term, i) => {
         const chip = el(
@@ -1166,6 +1322,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
     } else {
       filtered = filterLines(base, { ...state, query: fieldMode ? '' : state.query });
     }
+    // a search or an error group looks inside closed sections too
+    if (groups.length > 0 && !state.query && !state.group) filtered = foldGroups(filtered, groups, openGroups);
     visible = state.collapse ? collapseRepeats(filtered) : filtered.map((l) => ({ ...l, repeat: 1 }));
     spacer.style.height = `${visible.length * ROW_HEIGHT}px`;
     const conditionNote = conditions
@@ -1209,6 +1367,25 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
           if (line.gap >= 10_000) gap.classList.add('big');
         }
         const txt = el('span', { className: 'txt' });
+        const group = groupByStart.get(line.number);
+        if (group) {
+          const open = openGroups.has(group.start);
+          row.classList.add('group-head');
+          const size = group.end - group.start;
+          txt.append(
+            el(
+              'span',
+              {
+                className: 'fold-toggle',
+                title: open ? t('viewerSectionHide', 'Hide this section') : t('viewerSectionShow', 'Show this section'),
+              },
+              `${open ? '▾' : '▸'} ${tn('viewerSectionLines', size, '{n} line', '{n} lines')}`,
+            ),
+          );
+          if (group.errors > 0) {
+            txt.append(el('span', { className: 'group-errors' }, `✖ ${group.errors.toLocaleString()}`));
+          }
+        }
         if (line.repeat > 1) {
           txt.append(el('span', { className: 'repeat', title: repeatTitle }, `×${line.repeat}`));
         }
@@ -1232,9 +1409,14 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
   void loadBookmarks();
   scroller.focus();
 
-  // #L120 in the address opens the viewer on that line
+  // #L120 in the address opens the viewer on that line, opening its section if it is folded
   const hash = LINE_HASH.exec(location.hash);
   if (hash) {
+    const inside = groups.find((g) => Number(hash[1]) > g.start && Number(hash[1]) <= g.end);
+    if (inside && !openGroups.has(inside.start)) {
+      openGroups.add(inside.start);
+      void refresh();
+    }
     const index = visible.findIndex((l) => l.number === Number(hash[1]));
     if (index >= 0) scrollToIndex(index, true);
   }

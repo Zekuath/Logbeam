@@ -14,6 +14,39 @@
   --del-strong: #6b2a2f;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
+/* light: when the system is light (unless Settings say dark), or when Settings say light */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --bg: #ffffff;
+    --panel: #eef0f2;
+    --border: #d5d9de;
+    --fg: #1f2328;
+    --muted: #6b7280;
+    --accent: #b25e00;
+    --add-bg: #e6f4ea;
+    --add-fg: #1e7b34;
+    --add-strong: #b7e1c1;
+    --del-bg: #fdecec;
+    --del-fg: #b42318;
+    --del-strong: #f5c2c0;
+  }
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --panel: #eef0f2;
+  --border: #d5d9de;
+  --fg: #1f2328;
+  --muted: #6b7280;
+  --accent: #b25e00;
+  --add-bg: #e6f4ea;
+  --add-fg: #1e7b34;
+  --add-strong: #b7e1c1;
+  --del-bg: #fdecec;
+  --del-fg: #b42318;
+  --del-strong: #f5c2c0;
+}
 * {
   box-sizing: border-box;
 }
@@ -131,6 +164,68 @@ textarea.dragging {
 }
 .summary .note {
   margin-left: 10px;
+}
+.errors {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  display: grid;
+  gap: 2px;
+}
+.errors-head {
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+.errors-head .new {
+  color: var(--del-fg);
+}
+.errors-head .none {
+  color: var(--add-fg);
+}
+.errors .error {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 8px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 2px 6px;
+  font: 12px/1.5 var(--mono);
+}
+.errors .error:hover {
+  background: var(--bg);
+}
+.errors .error .n {
+  color: var(--del-fg);
+  font-weight: 700;
+}
+.errors .error .sample {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--del-fg);
+}
+.errors .gone summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.errors .gone .error .n,
+.errors .gone .error .sample {
+  color: var(--muted);
+}
+.line.flash {
+  animation: flash 1.2s ease-out;
+}
+@keyframes flash {
+  from {
+    outline: 2px solid var(--accent);
+  }
+  to {
+    outline: 2px solid transparent;
+  }
 }
 .changes table {
   width: 100%;

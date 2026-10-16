@@ -9,10 +9,12 @@ import {
   parseJsonDocument,
   previewJson,
 } from '../lib/diff';
-import { splitLines } from '../lib/logs';
+import { ErrorGroup, diffErrors } from '../lib/insights';
+import { CustomLevel, parseLog, splitLines } from '../lib/logs';
 import { maskSecrets, setCustomSecretPatterns } from '../lib/secrets';
 import { localizePage, t, tn } from '../shared/i18n';
 import { loadSettings } from '../shared/settings';
+import { applyTheme } from '../shared/theme';
 import { COMPARE_UPDATED, CompareInputs, loadCompareInputs, saveCompareInputs } from '../shared/compare';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -23,6 +25,7 @@ const ignoreVolatile = $<HTMLInputElement>('ignore-volatile');
 const ignoreSpace = $<HTMLInputElement>('ignore-space');
 const mask = $<HTMLInputElement>('mask');
 const summary = $('summary');
+const errorsEl = $('errors');
 const changesEl = $('changes');
 const result = $('result');
 
@@ -32,6 +35,8 @@ const CONTEXT = 3;
 const ROW_LIMIT = 5000;
 
 let names: Pick<CompareInputs, 'leftName' | 'rightName'> = {};
+/** The user's own level words, so ALERT counts as an error here too. */
+let customLevels: CustomLevel[] = [];
 let showAll = false;
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -49,7 +54,8 @@ function el<K extends keyof HTMLElementTagNameMap>(
 function compare(): void {
   const before = left.value;
   const after = right.value;
-  for (const section of [summary, changesEl, result]) section.replaceChildren();
+  for (const section of [summary, errorsEl, changesEl, result]) section.replaceChildren();
+  errorsEl.hidden = true;
   if (!before.trim() || !after.trim()) {
     summary.hidden = changesEl.hidden = result.hidden = true;
     return;
@@ -115,6 +121,69 @@ function compare(): void {
   if (asJson) renderJsonChanges(diffJson(beforeJson, afterJson));
   else changesEl.hidden = true;
   renderLines(diff.ops, leftLines, rightLines, key);
+  if (!asJson) renderErrors(before, after);
+}
+
+/** The errors that are new in After, e.g. in a failing CI run next to the last green one. */
+function renderErrors(before: string, after: string): void {
+  const options = { customLevels };
+  const { added, gone, same } = diffErrors(parseLog(before, options), parseLog(after, options));
+  if (added.length + gone.length + same === 0) return;
+  errorsEl.hidden = false;
+  const show = (text: string) => (mask.checked ? maskSecrets(text) : text);
+  const item = (group: ErrorGroup, side: 'left' | 'right') => {
+    const button = el(
+      'button',
+      { className: 'error', title: t('compareShowLine', 'Show line {n} in the diff', { n: group.lines[0] }) },
+      el('span', { className: 'n' }, `×${group.count}`),
+      el('span', { className: 'sample' }, show(group.sample)),
+    );
+    button.addEventListener('click', () => scrollToLine(side, group.lines[0]));
+    return button;
+  };
+  const kinds = (n: number) => tn('compareErrorKinds', n, '{n} kind of error', '{n} kinds of error');
+  errorsEl.append(
+    el(
+      'div',
+      { className: 'errors-head' },
+      added.length
+        ? el('b', { className: 'new' }, t('compareNewErrors', 'New errors in After: {kinds}', { kinds: kinds(added.length) }))
+        : el('b', { className: 'none' }, t('compareNoNewErrors', 'No new errors in After')),
+      same ? ` · ${t('compareAlsoBefore', '{kinds} also in Before', { kinds: kinds(same) })}` : '',
+    ),
+    ...added.map((group) => item(group, 'right')),
+  );
+  if (gone.length) {
+    const details = el(
+      'details',
+      { className: 'gone' },
+      el('summary', {}, t('compareGone', 'Gone since Before: {kinds}', { kinds: kinds(gone.length) })),
+      ...gone.map((group) => item(group, 'left')),
+    );
+    errorsEl.append(details);
+  }
+}
+
+/** Scrolls the diff to a line of either side, showing all lines first if it was folded away. */
+function scrollToLine(side: 'left' | 'right', number: number): void {
+  const find = () => result.querySelector<HTMLElement>(`.line[data-${side}="${number}"]`);
+  let row = find();
+  if (!row) {
+    // past the first rows drawn: draw them all
+    showAll = true;
+    compare();
+    row = find();
+  }
+  if (!row) {
+    // in a folded run of unchanged lines (an error that is in both logs at the same place)
+    for (const fold of result.querySelectorAll<HTMLButtonElement>('.fold')) fold.click();
+    row = find();
+  }
+  if (!row) return;
+  row.scrollIntoView({ block: 'center' });
+  row.classList.remove('flash');
+  void row.offsetWidth; // restart the animation
+  row.classList.add('flash');
 }
 
 function renderJsonChanges(changes: JsonChange[]): void {
@@ -157,7 +226,7 @@ function renderLines(ops: Op[], leftLines: string[], rightLines: string[], key: 
       content.append(text);
     }
     drawn++;
-    return el(
+    const line = el(
       'div',
       { className: `line ${op.kind}` },
       el('span', { className: 'ln' }, op.left === undefined ? '' : String(op.left + 1)),
@@ -165,6 +234,10 @@ function renderLines(ops: Op[], leftLines: string[], rightLines: string[], key: 
       el('span', { className: 'sign' }, op.kind === 'add' ? '+' : op.kind === 'del' ? '−' : ' '),
       content,
     );
+    // line numbers, 1-based, for jumping to an error
+    if (op.left !== undefined) line.dataset.left = String(op.left + 1);
+    if (op.right !== undefined) line.dataset.right = String(op.right + 1);
+    return line;
   };
 
   // which unchanged lines are close enough to a change to be shown
@@ -308,5 +381,7 @@ chrome.runtime.onMessage.addListener((message: { type?: string }, _sender, sendR
 localizePage();
 void loadSettings().then((settings) => {
   setCustomSecretPatterns(settings.customSecrets);
+  customLevels = settings.customLevels;
+  applyTheme(settings.theme);
   return loadInputs();
 });

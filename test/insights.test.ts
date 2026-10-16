@@ -3,13 +3,20 @@ import {
   appendedText,
   bookmarkReport,
   defaultColumns,
+  diffErrors,
+  findGroups,
+  foldGroups,
   fieldStats,
+  formatDuration,
   formatTime,
   groupErrors,
   isMostlyJson,
   lineFields,
   localizeTimestamp,
+  numericStats,
   tableCells,
+  quoteCsv,
+  toCsv,
 } from '../src/lib/insights';
 import { parseLog } from '../src/lib/logs';
 
@@ -69,6 +76,57 @@ describe('bookmarkReport', () => {
   });
 });
 
+describe('numericStats', () => {
+  const timed = parseLog(
+    [
+      '{"level":"info","duration":120}',
+      '{"level":"info","duration":950}',
+      'INFO slow request duration=1.2s',
+      'ERROR failed duration=30ms',
+      '\tat com.example.Pay.charge(Pay.java:42) duration=99999ms',
+      'INFO done duration=5ms',
+      'INFO cached duration=40',
+    ].join('\n'),
+  );
+
+  it('gives min, median, p95, p99 and max of durations in milliseconds', () => {
+    expect(numericStats(timed, 'duration')).toEqual({
+      count: 6,
+      min: 5,
+      median: 40,
+      p95: 1200,
+      p99: 1200,
+      max: 1200,
+      duration: true,
+    });
+  });
+
+  it('uses the nearest rank, a value that was really seen', () => {
+    const many = parseLog(Array.from({ length: 100 }, (_, i) => `INFO took=${i + 1}`).join('\n'));
+    const stats = numericStats(many, 'took')!;
+    expect([stats.median, stats.p95, stats.p99, stats.duration]).toEqual([50, 95, 99, false]);
+  });
+
+  it('is null for text fields and for a single number', () => {
+    expect(numericStats(lines, 'service')).toBeNull();
+    expect(numericStats(parseLog('INFO a took=5ms'), 'took')).toBeNull();
+    // mostly IDs that look like words: not a number field
+    const ids = parseLog(['INFO id=abc', 'INFO id=def', 'INFO id=12', 'INFO id=13', 'INFO id=xyz'].join('\n'));
+    expect(numericStats(ids, 'id')).toBeNull();
+  });
+
+  it('formats durations the way logs write them', () => {
+    expect([0.4, 120, 1200, 1250, 90_000, 7_200_000].map(formatDuration)).toEqual([
+      '0.4ms',
+      '120ms',
+      '1.2s',
+      '1.3s',
+      '1.5m',
+      '2h',
+    ]);
+  });
+});
+
 describe('fieldStats', () => {
   it('counts the values of a field over entries', () => {
     expect(fieldStats(lines, 'status')).toEqual({
@@ -116,6 +174,45 @@ describe('groupErrors', () => {
   });
 });
 
+describe('diffErrors', () => {
+  const green = parseLog(
+    [
+      '2026-10-03T09:00:01Z INFO build 101 started',
+      '2026-10-03T09:00:02Z ERROR cache miss for key 9f2c',
+      '2026-10-03T09:00:03Z ERROR flaky probe timed out after 3012ms',
+      '\tat Probe.check(Probe.java:20)',
+      '2026-10-03T09:00:09Z INFO build 101 passed',
+    ].join('\n'),
+  );
+  const red = parseLog(
+    [
+      '2026-10-04T10:00:01Z INFO build 102 started',
+      '2026-10-04T10:00:02Z ERROR cache miss for key 41aa',
+      '2026-10-04T10:00:05Z ERROR connection refused to db:5432',
+      '\tat Db.connect(Db.java:88)',
+      '2026-10-04T10:00:06Z ERROR connection refused to db:5432',
+      '\tat Db.connect(Db.java:88)',
+      '2026-10-04T10:00:09Z ERROR build 102 failed',
+    ].join('\n'),
+  );
+
+  it('finds the errors that are new, ignoring times, IDs and numbers', () => {
+    const diff = diffErrors(green, red);
+    expect(diff.added.map((g) => [g.count, g.lines[0], g.sample])).toEqual([
+      [2, 3, '2026-10-04T10:00:05Z ERROR connection refused to db:5432'],
+      [1, 7, '2026-10-04T10:00:09Z ERROR build 102 failed'],
+    ]);
+    expect(diff.same).toBe(1);
+  });
+
+  it('lists the errors that are gone', () => {
+    expect(diffErrors(green, red).gone.map((g) => g.sample)).toEqual([
+      '2026-10-03T09:00:03Z ERROR flaky probe timed out after 3012ms',
+    ]);
+    expect(diffErrors(red, red)).toEqual({ added: [], gone: [], same: 3 });
+  });
+});
+
 describe('time zones', () => {
   it('formats in UTC or local time', () => {
     const ms = Date.UTC(2026, 9, 4, 10, 0, 5, 120);
@@ -153,6 +250,39 @@ describe('JSON table', () => {
       rest: '@timestamp=2026-10-04T10:00:01Z logger=db retries=3',
     });
   });
+
+  it('quotes fields containing commas, double quotes and newlines per RFC 4180', () => {
+    expect(quoteCsv('simple')).toBe('simple');
+    expect(quoteCsv('a,b')).toBe('"a,b"');
+    expect(quoteCsv('he said "ok"')).toBe('"he said ""ok"""');
+    expect(quoteCsv('line1\nline2')).toBe('"line1\nline2"');
+    expect(quoteCsv('line1\r\nline2')).toBe('"line1\r\nline2"');
+    expect(quoteCsv('a, "b"\nc')).toBe('"a, ""b""\nc"');
+  });
+
+  it('neutralizes cells a spreadsheet would run as formulas, but keeps numbers', () => {
+    expect(quoteCsv('=HYPERLINK("http://evil","x")')).toBe(`"'=HYPERLINK(""http://evil"",""x"")"`);
+    expect(['+cmd|calc', '-2+3', '@SUM(A1)', '\tx'].map(quoteCsv)).toEqual(["'+cmd|calc", "'-2+3", "'@SUM(A1)", "'\tx"]);
+    expect(['-5', '+1.5', '200', '-'].map(quoteCsv)).toEqual(['-5', '+1.5', '200', "'-"]);
+  });
+
+  it('leaves stack-trace lines out of the CSV', () => {
+    const logs = parseLog(['{"level":"ERROR","msg":"boom"}', '\tat X.y(X.java:1)'].join('\n'));
+    expect(toCsv(logs, ['level', 'msg'])).toBe('level,msg\r\nERROR,boom\r\n');
+  });
+
+  it('exports chosen columns as CSV with header', () => {
+    const csv = toCsv(json, ['level', 'message']);
+    expect(csv).toBe('level,message\r\nINFO,ok\r\nERROR,down\r\n');
+  });
+
+  it('masks secrets in CSV values when mask option is provided', () => {
+    const logs = parseLog(['{"level":"INFO","key":"secret123456"}'].join('\n'));
+    const csv = toCsv(logs, ['level', 'key'], {
+      mask: (val) => val.replace('secret123456', '***'),
+    });
+    expect(csv).toBe('level,key\r\nINFO,***\r\n');
+  });
 });
 
 describe('appendedText', () => {
@@ -160,5 +290,40 @@ describe('appendedText', () => {
     expect(appendedText('a\n', 'a\nb\nc')).toEqual({ added: 'b\n', consumed: 4 });
     expect(appendedText('a\n', 'a\n')).toEqual({ added: '', consumed: 2 });
     expect(appendedText('a\nb\n', 'x\n')).toBeNull();
+  });
+});
+
+describe('GitHub Actions groups', () => {
+  const log = parseLog(
+    [
+      '2026-10-04T10:00:00.1000000Z ##[group]Run actions/checkout@v4',
+      '2026-10-04T10:00:00.2000000Z with:',
+      '2026-10-04T10:00:00.3000000Z   repository: andronaft/Logbeam',
+      '2026-10-04T10:00:00.4000000Z ##[endgroup]',
+      '2026-10-04T10:00:01.0000000Z Syncing repository: andronaft/Logbeam',
+      '2026-10-04T10:00:02.0000000Z ##[group]Run npm test',
+      '2026-10-04T10:00:03.0000000Z ERROR 1 test failed',
+      '2026-10-04T10:00:04.0000000Z ##[group]Post job cleanup.',
+      '2026-10-04T10:00:05.0000000Z ##[error]Process completed with exit code 1.',
+      '::group::Local run',
+      'output',
+    ].join('\n'),
+  );
+
+  it('finds the groups, their ends and their errors; a new group ends an unclosed one', () => {
+    expect(findGroups(log).map((g) => [g.title, g.start, g.end, g.errors])).toEqual([
+      ['Run actions/checkout@v4', 1, 4, 0],
+      ['Run npm test', 6, 7, 1],
+      ['Post job cleanup.', 8, 9, 1],
+      ['Local run', 10, 11, 0],
+    ]);
+  });
+
+  it('folds closed groups down to their header line', () => {
+    const groups = findGroups(log);
+    const shown = foldGroups(log, groups, new Set([6])).map((l) => l.number);
+    expect(shown).toEqual([1, 5, 6, 7, 8, 10]);
+    expect(foldGroups(log, groups, new Set(groups.map((g) => g.start)))).toHaveLength(log.length);
+    expect(foldGroups(log, [], new Set())).toBe(log);
   });
 });

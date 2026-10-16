@@ -5,7 +5,63 @@
 ### Added
 
 - **Ukrainian** everywhere: the log viewer (toolbar, tooltips, inspector, toasts), Compare, Settings and the
-  page for pasted text and files. Counts use the right plural form (`1 рядок`, `3 рядки`, `5 рядків`).
+  page for pasted text and files. Counts use the right plural form (`1 рядок`, `3 рядки`, `5 рядків`)
+  (#1, translated by @o-shpatakovska in #7).
+- **Move between lines** with `j` / `k`, and to the first or last line with `g` / `G` (#8, thanks @Zekuath).
+- **Export the JSON table as CSV**: with **Table** on, **Save** downloads the shown rows with the chosen columns
+  (#12, thanks @Zekuath). Cells that a spreadsheet would run as a formula (`=…`, `+…`, `@…`) are made plain text.
+
+## 0.8.0
+
+### Added
+
+- **GitHub Actions sections.** The `##[group]` … `##[endgroup]` sections of a raw GitHub Actions log are folded
+  like in GitHub, with their size and error count; the ones with errors start open. Click ▸ to open one, or
+  **Sections** to open or close them all. A search looks inside closed sections too (#14, suggested on Reddit).
+- **For contributors**: a contributing guide, a security policy, issue and pull request templates.
+
+### Improved
+
+- A `##[group]` or `::group::` line starts an entry of its own, so a log without timestamps doesn't carry the
+  last level into the next section.
+
+## 0.7.0
+
+### Added
+
+- **New errors in Compare.** Compare two runs of a CI job, and above the diff Logbeam lists the errors
+  that are new in the second one, with how often they happened; the ones that are gone are listed apart.
+  Errors are matched by message and first stack frames, with times, numbers and IDs ignored. Click one
+  to jump to it in the diff (#13).
+
+### Improved
+
+- **Jenkins consoles.** Logs without timestamps no longer carry the last level on to every line after
+  it: `[Pipeline]` steps and the `+ command` lines Jenkins echoes start entries of their own, and a bare
+  `java.lang.…Exception:` line is an error.
+- **IDs in hex.** Short commit SHAs and cache keys (`41aa0be`, `node-modules-9f2c71d`) are ignored by
+  "Ignore timestamps, IDs and durations" in Compare, and by error groups and collapsed repeats.
+
+## 0.6.0
+
+### Added
+
+- **ANSI colours** in logs from CI runners, Docker and CLIs are drawn as colours, and the escape codes no
+  longer get in the way of levels, times, search and filters (#3).
+- **Your own level words** in Settings, e.g. `ALERT` → ERROR or `AUDIT` → INFO (#6).
+- **Light theme** for the log viewer, Compare, Settings and the popup: like the system, or always dark or
+  light (#5).
+- **Keyboard shortcuts list**: press `?` (or the **?** button) in the log viewer to see its keys (#4).
+- **Percentiles for numbers and durations.** Field statistics of a field like `took=154ms` or
+  `"duration": 950` also show min, median, p95, p99 and max; click one to see only the entries at or
+  above it (`took>=1.2s`).
+
+### Fixed
+
+- Typing a bookmark note or table columns no longer triggers the viewer's keys: an `e` in the note
+  jumped to the next error and lost what was typed.
+- Esc in the search box could be undone 150 ms later by the search still waiting for typing to stop.
+- The end-to-end test expected numbers formatted for the machine's locale.
 
 ## 0.5.0
 

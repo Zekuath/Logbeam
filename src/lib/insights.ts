@@ -1,9 +1,9 @@
 /**
  * What the log viewer computes about a log besides filtering it: an incident report from bookmarks,
- * the top values of a field, groups of the same error, columns for a JSON table, local times, and the
- * new part of a log that is still being written.
+ * the top values of a field, groups of the same error (and which are new since another log), columns
+ * for a JSON table, local times, and the new part of a log that is still being written.
  */
-import { fieldValue, plainFields } from './fields';
+import { fieldValue, numericValue, plainFields } from './fields';
 import { LogLine, formatGap, signature, splitSource } from './logs';
 
 // ---- bookmarks ---------------------------------------------------------------------------
@@ -80,6 +80,64 @@ export function fieldStats(lines: LogLine[], key: string, top = 10): { values: V
   return { values, total };
 }
 
+export interface NumericStats {
+  /** Entries with a number in this field. */
+  count: number;
+  min: number;
+  median: number;
+  p95: number;
+  p99: number;
+  max: number;
+  /** Some values had a time unit (250ms, 1.2s): the numbers are milliseconds. */
+  duration: boolean;
+}
+
+/** Below this share of numeric values a field is treated as text (an ID that is sometimes a number). */
+const NUMERIC_SHARE = 0.8;
+
+/**
+ * Min, median, p95, p99 and max of a field whose values are numbers or durations (took=154ms,
+ * "duration": 950), over the given entries; null for a text field or fewer than 2 numbers.
+ */
+export function numericStats(lines: LogLine[], key: string): NumericStats | null {
+  const numbers: number[] = [];
+  let total = 0;
+  let duration = false;
+  for (const line of lines) {
+    if (line.continuation) continue;
+    const value = fieldValue(line, key);
+    if (value === undefined) continue;
+    total++;
+    const number = numericValue(value);
+    if (Number.isNaN(number)) continue;
+    numbers.push(number);
+    if (/[a-zµ]$/i.test(value.trim())) duration = true;
+  }
+  if (numbers.length < 2 || numbers.length < total * NUMERIC_SHARE) return null;
+  numbers.sort((a, b) => a - b);
+  // nearest rank: p95 is a value that was really seen, at or above 95% of them
+  const rank = (p: number) => numbers[Math.min(numbers.length - 1, Math.ceil(p * numbers.length) - 1)];
+  return {
+    count: numbers.length,
+    min: numbers[0],
+    median: rank(0.5),
+    p95: rank(0.95),
+    p99: rank(0.99),
+    max: numbers[numbers.length - 1],
+    duration,
+  };
+}
+
+/** A duration in milliseconds as people write it in logs: 0.4ms, 120ms, 1.2s, 3.5m. */
+export function formatDuration(ms: number): string {
+  const round = (n: number) => String(Math.round(n * 10) / 10);
+  if (Math.abs(ms) < 1) return `${Math.round(ms * 1000) / 1000}ms`;
+  if (Math.abs(ms) < 1000) return `${round(ms)}ms`;
+  if (Math.abs(ms) < 60_000) return `${round(ms / 1000)}s`;
+  if (Math.abs(ms) < 3_600_000) return `${round(ms / 60_000)}m`;
+  return `${round(ms / 3_600_000)}h`;
+}
+
 /** The fields of a line, in the order they appear: JSON keys or key=value pairs. */
 export function lineFields(line: LogLine): string[] {
   const keys = line.json ? Object.keys(line.json) : [...plainFields(line.text).keys()];
@@ -132,6 +190,86 @@ export function groupErrors(lines: LogLine[]): ErrorGroup[] {
     }
   }
   return [...groups.values()].sort((a, b) => b.count - a.count || a.lines[0] - b.lines[0]);
+}
+
+export interface ErrorDiff {
+  /** Errors in the second log that the first one doesn't have. */
+  added: ErrorGroup[];
+  /** Errors of the first log that are gone in the second. */
+  gone: ErrorGroup[];
+  /** Kinds of error in the second log that the first one had too. */
+  same: number;
+}
+
+/**
+ * What went wrong this time that didn't before: the error groups of two logs, e.g. the last green
+ * CI run and the failing one, matched by message and first stack frames with numbers, IDs and times
+ * ignored, so two runs of the same job give the same groups.
+ */
+export function diffErrors(before: LogLine[], after: LogLine[]): ErrorDiff {
+  const beforeGroups = groupErrors(before);
+  const afterGroups = groupErrors(after);
+  const beforeKeys = new Set(beforeGroups.map((g) => g.key));
+  const afterKeys = new Set(afterGroups.map((g) => g.key));
+  const added = afterGroups.filter((g) => !beforeKeys.has(g.key));
+  return {
+    added,
+    gone: beforeGroups.filter((g) => !afterKeys.has(g.key)),
+    same: afterGroups.length - added.length,
+  };
+}
+
+// ---- GitHub Actions groups ---------------------------------------------------------------
+
+export interface LogGroup {
+  /** The text after ##[group]: "Run npm test", "Fetching the repository". */
+  title: string;
+  /** Line number of the ##[group] line. */
+  start: number;
+  /** Line number of its ##[endgroup], or of the line before the next group or the log's last line. */
+  end: number;
+  /** ERROR entries inside the group. */
+  errors: number;
+}
+
+// GitHub Actions raw logs: "2026-10-04T10:00:00.1234567Z ##[group]Run npm test"; ::group:: as written in a
+// workflow, or printed by tools that run locally (act)
+const GROUP_START = /^(?:\d{4}-\d{2}-\d{2}T[\d:.]+Z\s)?(?:##\[group\]|::group::)(.*)$/;
+const GROUP_END = /^(?:\d{4}-\d{2}-\d{2}T[\d:.]+Z\s)?(?:##\[endgroup\]|::endgroup::)\s*$/;
+
+/**
+ * The ##[group] … ##[endgroup] sections of a GitHub Actions log, which the GitHub UI folds. Groups don't
+ * nest there, so a new group ends the one before it.
+ */
+export function findGroups(lines: LogLine[]): LogGroup[] {
+  const groups: LogGroup[] = [];
+  let open: LogGroup | null = null;
+  for (const line of lines) {
+    const rest = splitSource(line.text).rest;
+    const start = GROUP_START.exec(rest);
+    if (start) {
+      if (open) open.end = line.number - 1;
+      open = { title: start[1].trim(), start: line.number, end: line.number, errors: 0 };
+      groups.push(open);
+    } else if (open) {
+      open.end = line.number;
+      if (line.level === 'ERROR' && !line.continuation) open.errors++;
+      if (GROUP_END.test(rest)) open = null;
+    }
+  }
+  return groups;
+}
+
+/** Leaves out the lines inside closed groups; their ##[group] line stays as the group's header. */
+export function foldGroups<T extends LogLine>(lines: T[], groups: LogGroup[], open: Set<number>): T[] {
+  const closed = groups.filter((g) => !open.has(g.start) && g.end > g.start);
+  if (closed.length === 0) return lines;
+  let i = 0;
+  return lines.filter((line) => {
+    while (i < closed.length && closed[i].end < line.number) i++;
+    const group = closed[i];
+    return !group || line.number <= group.start || line.number > group.end;
+  });
 }
 
 // ---- time zones --------------------------------------------------------------------------
@@ -209,6 +347,46 @@ export function tableCells(line: LogLine, columns: string[]): { cells: string[];
         .join(' ')
     : line.text;
   return { cells, rest };
+}
+
+/**
+ * Quotes a single CSV field value per RFC 4180.
+ * Fields containing double-quotes, commas, or line breaks are wrapped in double-quotes,
+ * with any existing double-quotes escaped as `""`.
+ */
+export function quoteCsv(value: string): string {
+  // a log is untrusted text: =HYPERLINK(…), +cmd|… or @SUM(…) would run as a formula in a spreadsheet,
+  // so such cells start with ' (OWASP's advice); plain numbers like -5 or +1.5 stay numbers
+  if (/^[=+\-@\t\r]/.test(value) && !/^[+-]?\d+(?:\.\d+)?$/.test(value)) value = `'${value}`;
+  if (value.includes('"') || value.includes(',') || value.includes('\n') || value.includes('\r')) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+export interface CsvOptions {
+  /** Masks secrets in the cell values. */
+  mask?: (text: string) => string;
+}
+
+/**
+ * Converts log rows to a CSV formatted string per RFC 4180.
+ * Includes a header row of column names, followed by each row's cells.
+ */
+export function toCsv(rows: LogLine[], columns: string[], options?: CsvOptions): string {
+  const header = columns.map(quoteCsv).join(',');
+  const lines = [header];
+  for (const row of rows) {
+    // stack-trace lines have no fields, so they would only be empty rows
+    if (row.continuation) continue;
+    const { cells } = tableCells(row, columns);
+    const formatted = cells.map((cell) => {
+      const masked = options?.mask ? options.mask(cell) : cell;
+      return quoteCsv(masked);
+    });
+    lines.push(formatted.join(','));
+  }
+  return lines.join('\r\n') + '\r\n';
 }
 
 // ---- following a growing log -------------------------------------------------------------

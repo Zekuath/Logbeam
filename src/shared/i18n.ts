@@ -21,7 +21,7 @@ let pluralRules: Intl.PluralRules | undefined;
  * key_other (Ukrainian has all four, English only one and other). {n} is the formatted count.
  */
 export function tn(key: string, n: number, one: string, other: string, values: Record<string, string | number> = {}): string {
-  pluralRules ??= new Intl.PluralRules(t('@@ui_locale', 'en').replace('_', '-'));
+  pluralRules ??= new Intl.PluralRules(uiLanguage());
   const form = pluralRules.select(n);
   return t(`${key}_${form}`, form === 'one' ? one : other, { n: n.toLocaleString(), ...values });
 }
@@ -31,9 +31,13 @@ export function toolKey(id: string, part: 'short' | 'title'): string {
   return `tool_${id.replace(/-/g, '_')}_${part}`;
 }
 
-/** The browser's language for the lang attribute: uk, en. */
+/**
+ * The language of the messages actually shown (uk, en), for plural rules and the lang attribute.
+ * Not @@ui_locale: the browser's language can differ from the translation the extension falls
+ * back to, and plural forms must follow the text, not the browser.
+ */
 export function uiLanguage(): string {
-  return t('@@ui_locale', 'en').split('_')[0];
+  return t('localeCode', 'en');
 }
 
 /**
