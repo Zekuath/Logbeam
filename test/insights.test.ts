@@ -260,6 +260,17 @@ describe('JSON table', () => {
     expect(quoteCsv('a, "b"\nc')).toBe('"a, ""b""\nc"');
   });
 
+  it('neutralizes cells a spreadsheet would run as formulas, but keeps numbers', () => {
+    expect(quoteCsv('=HYPERLINK("http://evil","x")')).toBe(`"'=HYPERLINK(""http://evil"",""x"")"`);
+    expect(['+cmd|calc', '-2+3', '@SUM(A1)', '\tx'].map(quoteCsv)).toEqual(["'+cmd|calc", "'-2+3", "'@SUM(A1)", "'\tx"]);
+    expect(['-5', '+1.5', '200', '-'].map(quoteCsv)).toEqual(['-5', '+1.5', '200', "'-"]);
+  });
+
+  it('leaves stack-trace lines out of the CSV', () => {
+    const logs = parseLog(['{"level":"ERROR","msg":"boom"}', '\tat X.y(X.java:1)'].join('\n'));
+    expect(toCsv(logs, ['level', 'msg'])).toBe('level,msg\r\nERROR,boom\r\n');
+  });
+
   it('exports chosen columns as CSV with header', () => {
     const csv = toCsv(json, ['level', 'message']);
     expect(csv).toBe('level,message\r\nINFO,ok\r\nERROR,down\r\n');

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Move between lines** with `j` / `k`, and to the first or last line with `g` / `G` (#8, thanks @Zekuath).
+- **Export the JSON table as CSV**: with **Table** on, **Save** downloads the shown rows with the chosen columns
+  (#12, thanks @Zekuath). Cells that a spreadsheet would run as a formula (`=…`, `+…`, `@…`) are made plain text.
+
 ## 0.8.0
 
 ### Added

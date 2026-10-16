@@ -355,6 +355,9 @@ export function tableCells(line: LogLine, columns: string[]): { cells: string[];
  * with any existing double-quotes escaped as `""`.
  */
 export function quoteCsv(value: string): string {
+  // a log is untrusted text: =HYPERLINK(…), +cmd|… or @SUM(…) would run as a formula in a spreadsheet,
+  // so such cells start with ' (OWASP's advice); plain numbers like -5 or +1.5 stay numbers
+  if (/^[=+\-@\t\r]/.test(value) && !/^[+-]?\d+(?:\.\d+)?$/.test(value)) value = `'${value}`;
   if (value.includes('"') || value.includes(',') || value.includes('\n') || value.includes('\r')) {
     return `"${value.replace(/"/g, '""')}"`;
   }
@@ -374,6 +377,8 @@ export function toCsv(rows: LogLine[], columns: string[], options?: CsvOptions):
   const header = columns.map(quoteCsv).join(',');
   const lines = [header];
   for (const row of rows) {
+    // stack-trace lines have no fields, so they would only be empty rows
+    if (row.continuation) continue;
     const { cells } = tableCells(row, columns);
     const formatted = cells.map((cell) => {
       const masked = options?.mask ? options.mask(cell) : cell;
