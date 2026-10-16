@@ -11,9 +11,9 @@ updates:
         update-types: [minor, patch]
     open-pull-requests-limit: 3
     ignore:
-      # typescript-eslint supports TypeScript below 6.1; TypeScript 7 waits until it does
+      # typescript-eslint supports TypeScript below 6.1, so 6.1 and 7 wait until it does
       - dependency-name: typescript
-        update-types: [version-update:semver-major]
+        versions: ['>=6.1.0']
   - package-ecosystem: github-actions
     directory: /
     schedule:
