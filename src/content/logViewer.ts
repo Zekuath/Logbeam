@@ -37,6 +37,7 @@ import { loadSettings, saveSettings } from '../shared/settings';
 import { applyTheme } from '../shared/theme';
 import { Range, searchRanges, toSegments } from '../lib/segments';
 import { buildTimeline } from '../lib/timeline';
+import { keepInView, targetLineIndex } from '../lib/navigation';
 import { parseLogAsync } from './parseAsync';
 import { COMPARE_ADD } from '../shared/compare';
 import { RegexSearch } from './regexSearch';
@@ -1031,7 +1032,8 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       // typing in the bookmark note or the Columns box: letters are text there, not shortcuts
       const target = event.target as HTMLElement;
-      if (event.key !== 'Escape' && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (event.key !== 'Escape' && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable))
+        return;
       if (event.key === '?') {
         help.hidden = !help.hidden;
       } else if (event.key === 'Escape' && !help.hidden) {
@@ -1039,6 +1041,18 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
       } else if (event.key === '/') {
         event.preventDefault();
         search.focus();
+      } else if (event.key === 'j') {
+        event.preventDefault();
+        moveSelection(1);
+      } else if (event.key === 'k') {
+        event.preventDefault();
+        moveSelection(-1);
+      } else if (event.key === 'g') {
+        event.preventDefault();
+        selectLineAtIndex(0);
+      } else if (event.key === 'G') {
+        event.preventDefault();
+        selectLineAtIndex(visible.length - 1);
       } else if (event.key === 'e') {
         jumpToNext((l) => l.level === 'ERROR' && !l.continuation);
       } else if (event.key === 's' && secretCount > 0) {
@@ -1056,6 +1070,25 @@ function buildViewer(body: HTMLElement, allLines: LogLine[], options: ViewerOpti
 
   scroller.addEventListener('scroll', () => render(), { passive: true });
   window.addEventListener('resize', () => render(), { signal });
+
+  function selectLineAtIndex(index: number): void {
+    if (visible.length === 0) return;
+    const clamped = Math.max(0, Math.min(visible.length - 1, index));
+    select(visible[clamped].number);
+    const newScroll = keepInView(clamped, ROW_HEIGHT, scroller.scrollTop, scroller.clientHeight);
+    if (newScroll !== scroller.scrollTop) {
+      scroller.scrollTop = newScroll;
+      render();
+    }
+  }
+
+  function moveSelection(delta: number): void {
+    if (visible.length === 0) return;
+    const current = state.selected !== null ? visible.findIndex((l) => l.number === state.selected) : -1;
+    const top = Math.max(0, Math.floor(scroller.scrollTop / ROW_HEIGHT));
+    const target = targetLineIndex(current, delta, visible.length, top);
+    if (target >= 0) selectLineAtIndex(target);
+  }
 
   function scrollToIndex(index: number, selectIt: boolean): void {
     scroller.scrollTop = Math.max(0, index * ROW_HEIGHT - scroller.clientHeight / 3);

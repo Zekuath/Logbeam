@@ -206,6 +206,12 @@
   "keyPin": {
     "message": "Pin the search as a highlight (in the search box)"
   },
+  "keyNextPrevLine": {
+    "message": "Next / previous line"
+  },
+  "keyFirstLastLine": {
+    "message": "First / last line"
+  },
   "keyNextError": {
     "message": "Next error"
   },

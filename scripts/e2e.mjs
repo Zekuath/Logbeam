@@ -245,6 +245,23 @@ await page.screenshot({ path: 'docs/shortcuts.png' });
 await page.locator('.help').click({ position: { x: 5, y: 5 } });
 check('a click outside closes the list', await page.locator('.help').isHidden());
 
+// ---- move between lines ( j / k / g / G ) ----------------------------------------------------
+await page.keyboard.press('j');
+const firstLine = await page.locator('.row.selected .ln').textContent();
+check('j selects the next line', Boolean(firstLine));
+await page.keyboard.press('j');
+const secondLine = await page.locator('.row.selected .ln').textContent();
+check('j selects the next line again', Number(secondLine) > Number(firstLine));
+await page.keyboard.press('k');
+check('k selects the previous line', (await page.locator('.row.selected .ln').textContent()) === firstLine);
+await page.keyboard.press('G');
+const lastLine = await page.locator('.row.selected .ln').textContent();
+check('G jumps to the last line', Number(lastLine) > Number(secondLine));
+await page.keyboard.press('g');
+check('g jumps to the first line', (await page.locator('.row.selected .ln').textContent()) === '1');
+await page.keyboard.press('Escape');
+check('Esc clears the selection', await page.locator('.inspector').isHidden());
+
 // ---- Jenkins console ----------------------------------------------------------------------
 const jenkins = await context.newPage();
 watch(jenkins);

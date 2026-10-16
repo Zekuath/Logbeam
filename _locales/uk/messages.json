@@ -206,6 +206,12 @@
   "keyPin": {
     "message": "Закріпити пошук як підсвітку (у полі пошуку)"
   },
+  "keyNextPrevLine": {
+    "message": "Наступний / попередній рядок"
+  },
+  "keyFirstLastLine": {
+    "message": "Перший / останній рядок"
+  },
   "keyNextError": {
     "message": "Наступна помилка"
   },
